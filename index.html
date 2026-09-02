@@ -4175,26 +4175,40 @@
             for (let rotIdx = 0; rotIdx < 6; rotIdx++) {
                 const rotCard = document.createElement('div');
                 rotCard.className = 'rotation-card';
+
+                const subNotes = []; // { team, jersey, name } of anyone subbed OUT this rotation
                 
                 let html = '<div class="rotation-header"><h4>Rotation ' + (rotIdx + 1) + '</h4></div>';
 
                 // Visitor court
                 html += '<div class="court-mini"><div class="team-label" style="color: var(--team2-color);">VISITOR</div><div class="positions">';
                 const visitorLayout = [1, 6, 5, 2, 3, 4];
-                visitorLayout.forEach((pos, idx) => {
+                visitorLayout.forEach((pos) => {
                     const player = plan.visitorRotations[rotIdx][pos - 1];
                     const clickHandler = state.rotationPlanner.editMode ? 
                         'onclick="handlePlannerClick(\'visitor\', ' + rotIdx + ', ' + (pos - 1) + ')"' : '';
                     const isP1 = pos === 1;
-                    const p1Style = isP1 ? 'style="background: rgba(239, 68, 68, 0.15); border-color: #ef4444;"' : '';
+                    const isSub = !!(player && player.isSubOverride);
+                    if (isSub) subNotes.push({ team: 'Visitor', jersey: player.subbedOutJersey, name: player.subbedOutName });
+
+                    const boxStyleParts = [];
+                    if (isSub) {
+                        boxStyleParts.push('background: rgba(16, 185, 129, 0.25); border-color: #10b981; border-width: 2px;');
+                    } else if (isP1) {
+                        boxStyleParts.push('background: rgba(239, 68, 68, 0.15); border-color: #ef4444;');
+                    }
+                    const boxStyle = boxStyleParts.length ? 'style="' + boxStyleParts.join(' ') + '"' : '';
                     
-                    html += '<div class="position-box ' + (state.rotationPlanner.editMode ? 'editable' : '') + '" ' + clickHandler + ' ' + p1Style + '>';
+                    html += '<div class="position-box ' + (state.rotationPlanner.editMode ? 'editable' : '') + '" ' + clickHandler + ' ' + boxStyle + '>';
                     html += '<div class="pos-num" ' + (isP1 ? 'style="color: #ef4444; font-weight: 900;"' : '') + '>P' + pos + '</div>';
                     if (player) {
                         html += '<div class="player-info"><div class="jersey">' + (player.jersey || player.name.substring(0, 2).toUpperCase()) + '</div>';
                         html += '<div class="name">' + player.name + '</div></div>';
                     } else {
                         html += '<div class="empty-slot">Empty</div>';
+                    }
+                    if (isSub) {
+                        html += '<div style="font-size: 9px; font-weight: 800; color: #10b981; margin-top: 2px;">🔁 SUB</div>';
                     }
                     html += '</div>';
                 });
@@ -4203,14 +4217,23 @@
                 // Home court
                 html += '<div class="court-mini"><div class="team-label" style="color: var(--team1-color);">HOME</div><div class="positions">';
                 const homeLayout = [4, 3, 2, 5, 6, 1];
-                homeLayout.forEach((pos, idx) => {
+                homeLayout.forEach((pos) => {
                     const player = plan.homeRotations[rotIdx][pos - 1];
                     const clickHandler = state.rotationPlanner.editMode ? 
                         'onclick="handlePlannerClick(\'home\', ' + rotIdx + ', ' + (pos - 1) + ')"' : '';
                     const isP1 = pos === 1;
-                    const p1Style = isP1 ? 'style="background: rgba(239, 68, 68, 0.15); border-color: #ef4444;"' : '';
+                    const isSub = !!(player && player.isSubOverride);
+                    if (isSub) subNotes.push({ team: 'Home', jersey: player.subbedOutJersey, name: player.subbedOutName });
+
+                    const boxStyleParts = [];
+                    if (isSub) {
+                        boxStyleParts.push('background: rgba(16, 185, 129, 0.25); border-color: #10b981; border-width: 2px;');
+                    } else if (isP1) {
+                        boxStyleParts.push('background: rgba(239, 68, 68, 0.15); border-color: #ef4444;');
+                    }
+                    const boxStyle = boxStyleParts.length ? 'style="' + boxStyleParts.join(' ') + '"' : '';
                     
-                    html += '<div class="position-box ' + (state.rotationPlanner.editMode ? 'editable' : '') + '" ' + clickHandler + ' ' + p1Style + '>';
+                    html += '<div class="position-box ' + (state.rotationPlanner.editMode ? 'editable' : '') + '" ' + clickHandler + ' ' + boxStyle + '>';
                     html += '<div class="pos-num" ' + (isP1 ? 'style="color: #ef4444; font-weight: 900;"' : '') + '>P' + pos + '</div>';
                     if (player) {
                         html += '<div class="player-info"><div class="jersey">' + (player.jersey || player.name.substring(0, 2).toUpperCase()) + '</div>';
@@ -4218,9 +4241,21 @@
                     } else {
                         html += '<div class="empty-slot">Empty</div>';
                     }
+                    if (isSub) {
+                        html += '<div style="font-size: 9px; font-weight: 800; color: #10b981; margin-top: 2px;">🔁 SUB</div>';
+                    }
                     html += '</div>';
                 });
                 html += '</div></div>';
+
+                if (subNotes.length > 0) {
+                    html += '<div style="margin-top: 10px; padding: 8px 10px; background: rgba(16, 185, 129, 0.12); border: 1px solid #10b981; border-radius: 6px;">';
+                    html += '<div style="font-size: 11px; font-weight: 800; color: #10b981; margin-bottom: 3px;">🔁 Sub out before this rotation:</div>';
+                    subNotes.forEach(n => {
+                        html += '<div style="font-size: 11px; color: var(--text-primary);">' + n.team + ': ' + (n.jersey ? '#' + n.jersey + ' ' : '') + getLastName(n.name) + '</div>';
+                    });
+                    html += '</div>';
+                }
 
                 rotCard.innerHTML = html;
                 grid.appendChild(rotCard);
@@ -4354,25 +4389,39 @@
             }, 100);
         }
 
+        function getLastName(fullName) {
+            if (!fullName) return '';
+            const parts = fullName.trim().split(/\s+/);
+            return parts[parts.length - 1];
+        }
+
         function setPlannerPlayer(team, rotIdx, posIdx, playerId) {
             const plan = state.rotationPlanner.currentPlan;
             if (!plan) return;
 
             const rotations = team === 'home' ? plan.homeRotations : plan.visitorRotations;
-            
+            const previousOccupant = rotations[rotIdx][posIdx];
+
             if (playerId === null) {
                 rotations[rotIdx][posIdx] = null;
             } else {
                 const roster = team === 'home' ? state.home.roster : state.visitor.roster;
                 const player = roster.find(p => p.id === playerId);
-                
+
                 if (player) {
+                    // Swapping a DIFFERENT player into a box that already had someone
+                    // in it means a real substitution has to happen at this rotation
+                    // during the match — flag it so the coach can't miss it.
+                    const isActualSwap = !!previousOccupant && previousOccupant.id !== player.id;
                     rotations[rotIdx][posIdx] = {
                         id: player.id,
                         name: player.name,
                         jersey: player.jersey,
                         position: player.position,
-                        isGeneric: false
+                        isGeneric: false,
+                        isSubOverride: isActualSwap,
+                        subbedOutName: isActualSwap ? previousOccupant.name : null,
+                        subbedOutJersey: isActualSwap ? (previousOccupant.jersey || '') : null
                     };
                 }
             }
@@ -4389,13 +4438,20 @@
             if (!plan) return;
 
             const rotations = plan.visitorRotations;
-            
+            const previousOccupant = rotations[rotIdx][posIdx];
+            // Generic role IDs are always freshly generated, so identity is
+            // compared by role name instead of id here.
+            const isActualSwap = !!previousOccupant && previousOccupant.name !== roleName;
+
             rotations[rotIdx][posIdx] = {
                 id: 'visitor-generic-' + posIdx + '-' + Date.now(),
                 name: roleName,
                 jersey: roleCode,
                 position: roleName,
-                isGeneric: true
+                isGeneric: true,
+                isSubOverride: isActualSwap,
+                subbedOutName: isActualSwap ? previousOccupant.name : null,
+                subbedOutJersey: isActualSwap ? (previousOccupant.jersey || '') : null
             };
 
             const dropdown = document.querySelector('.player-dropdown');
@@ -4486,17 +4542,6 @@
             }
         }
 
-        // ============================================
-        // NEW: APPLY SAVED ROTATION TO LIVE COURT
-        // ============================================
-
-
-
-
-
-
-        
-
         function exportRotationPlan() {
             const plan = state.rotationPlanner.currentPlan;
             if (!plan) {
@@ -4514,7 +4559,7 @@
                     <meta charset="UTF-8">
                     <title>${plan.name} - Rotation Plan</title>
                     <style>
-                        * { margin: 0; padding: 0; box-sizing: border-box; }
+                        * { margin: 0; padding: 0; box-sizing: border-box; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
                         body {
                             font-family: Arial, sans-serif;
                             padding: 20px;
@@ -4584,6 +4629,10 @@
                             flex-direction: column;
                             justify-content: center;
                         }
+                        .position.sub-needed {
+                            background: #d1fae5;
+                            border: 2px solid #10b981;
+                        }
                         .position .pos-label {
                             font-size: 10px;
                             color: #999;
@@ -4597,6 +4646,29 @@
                         .position .name {
                             font-size: 11px;
                             color: #333;
+                        }
+                        .position .sub-badge {
+                            font-size: 9px;
+                            font-weight: 800;
+                            color: #059669;
+                            margin-top: 2px;
+                        }
+                        .sub-notes {
+                            margin-top: 10px;
+                            padding: 6px 10px;
+                            background: #d1fae5;
+                            border: 1px solid #10b981;
+                            border-radius: 4px;
+                        }
+                        .sub-notes .sub-notes-title {
+                            font-size: 11px;
+                            font-weight: 800;
+                            color: #059669;
+                            margin-bottom: 2px;
+                        }
+                        .sub-notes .sub-notes-line {
+                            font-size: 11px;
+                            color: #111;
                         }
                         .notes-section {
                             margin-top: 30px;
@@ -4642,45 +4714,69 @@
                     </div>
 
                     <div class="rotation-grid">
-                        ${plan.visitorRotations.map((rotation, idx) => `
+                        ${plan.visitorRotations.map((rotation, idx) => {
+                            const subNotes = [];
+
+                            const visitorCells = [1, 6, 5, 2, 3, 4].map((pos) => {
+                                const player = rotation[pos - 1];
+                                const isSub = !!(player && player.isSubOverride);
+                                if (isSub) subNotes.push({ team: 'Visitor', jersey: player.subbedOutJersey, name: player.subbedOutName });
+                                return `
+                                    <div class="position ${isSub ? 'sub-needed' : ''}">
+                                        <div class="pos-label">P${pos}</div>
+                                        ${player ? `
+                                            <div class="jersey">${player.jersey || player.name.substring(0, 2).toUpperCase()}</div>
+                                            <div class="name">${player.name}</div>
+                                            ${isSub ? '<div class="sub-badge">🔁 SUB</div>' : ''}
+                                        ` : '<div style="color: #999;">Empty</div>'}
+                                    </div>
+                                `;
+                            }).join('');
+
+                            const homeCells = [4, 3, 2, 5, 6, 1].map((pos) => {
+                                const player = plan.homeRotations[idx][pos - 1];
+                                const isSub = !!(player && player.isSubOverride);
+                                if (isSub) subNotes.push({ team: 'Home', jersey: player.subbedOutJersey, name: player.subbedOutName });
+                                return `
+                                    <div class="position ${isSub ? 'sub-needed' : ''}">
+                                        <div class="pos-label">P${pos}</div>
+                                        ${player ? `
+                                            <div class="jersey">${player.jersey || player.name.substring(0, 2).toUpperCase()}</div>
+                                            <div class="name">${player.name}</div>
+                                            ${isSub ? '<div class="sub-badge">🔁 SUB</div>' : ''}
+                                        ` : '<div style="color: #999;">Empty</div>'}
+                                    </div>
+                                `;
+                            }).join('');
+
+                            const getLastNameForExport = (fullName) => {
+                                if (!fullName) return '';
+                                const parts = fullName.trim().split(/\s+/);
+                                return parts[parts.length - 1];
+                            };
+
+                            const subNotesHtml = subNotes.length > 0 ? `
+                                <div class="sub-notes">
+                                    <div class="sub-notes-title">🔁 Sub out before this rotation:</div>
+                                    ${subNotes.map(n => `<div class="sub-notes-line">${n.team}: ${n.jersey ? '#' + n.jersey + ' ' : ''}${getLastNameForExport(n.name)}</div>`).join('')}
+                                </div>
+                            ` : '';
+
+                            return `
                             <div class="rotation-card">
                                 <h3>Rotation ${idx + 1}</h3>
                                 <div class="court-section">
                                     <h4>Visitor Team</h4>
-                                    <div class="court">
-                                        ${[4, 3, 2, 5, 6, 1].map((pos, i) => {
-                                            const player = rotation[pos - 1];
-                                            return `
-                                                <div class="position">
-                                                    <div class="pos-label">P${pos}</div>
-                                                    ${player ? `
-                                                        <div class="jersey">${player.jersey || player.name.substring(0, 2).toUpperCase()}</div>
-                                                        <div class="name">${player.name}</div>
-                                                    ` : '<div style="color: #999;">Empty</div>'}
-                                                </div>
-                                            `;
-                                        }).join('')}
-                                    </div>
+                                    <div class="court">${visitorCells}</div>
                                 </div>
                                 <div class="court-section">
                                     <h4>Home Team</h4>
-                                    <div class="court">
-                                        ${[4, 3, 2, 5, 6, 1].map((pos, i) => {
-                                            const player = plan.homeRotations[idx][pos - 1];
-                                            return `
-                                                <div class="position">
-                                                    <div class="pos-label">P${pos}</div>
-                                                    ${player ? `
-                                                        <div class="jersey">${player.jersey || player.name.substring(0, 2).toUpperCase()}</div>
-                                                        <div class="name">${player.name}</div>
-                                                    ` : '<div style="color: #999;">Empty</div>'}
-                                                </div>
-                                            `;
-                                        }).join('')}
-                                    </div>
+                                    <div class="court">${homeCells}</div>
                                 </div>
+                                ${subNotesHtml}
                             </div>
-                        `).join('')}
+                        `;
+                        }).join('')}
                     </div>
 
                     
