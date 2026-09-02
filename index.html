@@ -983,6 +983,7 @@
                         <button class="tab-btn" onclick="switchTab('stats')">Stats Sheet</button>
                         <div style="width: 1px; height: 30px; background: var(--border-color); margin: 0 5px;"></div>
                         <button class="btn-settings" onclick="openSettings()">⚙️ Settings</button>
+                        <button style="background: #6366f1;" onclick="openMatchHistory()">📚 Match History</button>
                         <button class="btn-export" onclick="exportStats()">📊 Export Stats</button>
                     </div>
                 </div>
@@ -1162,7 +1163,28 @@
     <div class="modal" id="roster-modal">
         <div class="modal-content">
             <button class="modal-close" onclick="closeRoster()">×</button>
-            <div class="modal-header">Manage Roster</div>
+            <div class="modal-header" id="roster-modal-header">Manage Roster</div>
+
+            <div id="visitor-team-bank-section" style="display: none; margin-bottom: 20px; padding: 15px; background: var(--button-bg); border-radius: 10px; border: 1px solid var(--border-color);">
+                <h3 style="margin-bottom: 10px; font-size: 15px;">Visitor Team Bank</h3>
+                <div id="visitor-team-bank-list" style="margin-bottom: 10px;"></div>
+                <button style="background: #10b981; width: 100%;" onclick="saveVisitorTeamToBank()">💾 Save Current Roster to Team Bank</button>
+                <div style="display: flex; gap: 8px; margin-top: 8px;">
+                    <button style="background: #3b82f6; flex: 1;" onclick="exportTeamBank()">⬇️ Export Bank (.json)</button>
+                    <button style="background: #f59e0b; flex: 1;" onclick="document.getElementById('team-bank-import-input').click()">⬆️ Import Team(s)</button>
+                </div>
+                <input type="file" id="team-bank-import-input" accept="application/json" style="display: none;" onchange="importTeamBankFile(this)">
+                <p style="color: var(--text-secondary); font-size: 11px; margin-top: 6px; font-style: italic;">
+                    Build a roster below, save it here, then reload it any time this team visits again. Export the whole bank to share every saved opponent with another coach's device in one file — no code or repository changes needed.
+                </p>
+            </div>
+
+            <div style="display: flex; gap: 8px; margin-bottom: 15px;">
+                <button style="background: #3b82f6; flex: 1; font-size: 13px;" onclick="exportRoster(state.currentTeam)">⬇️ Export This Roster (.json)</button>
+                <button style="background: #f59e0b; flex: 1; font-size: 13px;" onclick="document.getElementById('roster-import-input').click()">⬆️ Import Roster (.json)</button>
+            </div>
+            <input type="file" id="roster-import-input" accept="application/json" style="display: none;" onchange="importRosterFile(this)">
+
             <div class="roster-form">
                 <div class="form-group">
                     <label>Player Name *</label>
@@ -1187,7 +1209,10 @@
                     <input type="checkbox" id="player-libero">
                     <label for="player-libero">Libero</label>
                 </div>
-                <button style="background: #10b981;" onclick="addPlayer()">Add Player</button>
+                <div style="display: flex; gap: 10px;">
+                    <button id="roster-form-submit-btn" style="background: #10b981; flex: 1;" onclick="addPlayer()">Add Player</button>
+                    <button id="roster-form-cancel-btn" style="background: #6b7280; display: none;" onclick="cancelEditPlayer()">Cancel</button>
+                </div>
             </div>
             <div class="roster-list" id="roster-list"></div>
         </div>
@@ -1320,7 +1345,7 @@
 
             <div class="settings-group">
                 <button style="background: #f59e0b; width: 100%;" onclick="startNewSet()">Start New Set</button>
-                <button style="background: #ef4444; width: 100%; margin-top: 10px;" onclick="resetAll()">Reset All Scores & Stats</button>
+                <button style="background: #ef4444; width: 100%; margin-top: 10px;" onclick="resetAll()">🆕 Start New Match (Reset Scores & Stats)</button>
                 <button style="background: #6b7280; width: 100%; margin-top: 10px;" onclick="clearSavedData()">Erase Saved Data on This Device</button>
             </div>
         </div>
@@ -1359,7 +1384,70 @@
         </div>
     </div>
 
-    <!-- Visitor Role Selector Modal -->
+    <!-- Match History Modal -->
+    <div class="modal" id="match-history-modal" style="background: rgba(0, 0, 0, 0.95);">
+        <div style="background: var(--card-bg); border-radius: 16px; padding: 20px; max-width: 900px; width: 95%; max-height: 90vh; overflow-y: auto; color: var(--text-primary);">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px; border-bottom: 2px solid var(--border-color); padding-bottom: 15px; flex-wrap: wrap; gap: 10px;">
+                <h2 style="font-size: 24px; font-weight: bold; color: var(--text-primary); margin: 0;">📚 Match History</h2>
+                <div style="display: flex; gap: 10px;">
+                    <button style="background: #6366f1;" onclick="openTheaterModeLive()">🎬 Review Current Match</button>
+                    <button style="background: #10b981;" onclick="archiveCurrentMatch()">💾 Save Current Match</button>
+                    <button class="modal-close" onclick="closeMatchHistory()" style="position: relative; top: 0; right: 0;">×</button>
+                </div>
+            </div>
+            <p style="color: var(--text-secondary); font-size: 13px; margin-bottom: 15px;">
+                Saving a match here archives final scores, player stats, and the full point-by-point replay permanently, separate from the live game state. It does not clear the current scoreboard — use "Start New Match" in Settings for that (it will offer to archive first, then let you pick best-of-3 or best-of-5).
+            </p>
+            <div id="match-history-list"></div>
+        </div>
+    </div>
+
+    <!-- Game Review Theater Mode -->
+    <div class="modal" id="theater-mode-modal" style="background: rgba(0, 0, 0, 0.97);">
+        <div style="background: var(--card-bg); border-radius: 16px; padding: 20px; max-width: 1250px; width: 97%; max-height: 95vh; overflow-y: auto; color: var(--text-primary);">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; border-bottom: 2px solid var(--border-color); padding-bottom: 12px;">
+                <h2 style="font-size: 22px; font-weight: bold; margin: 0;">🎬 <span id="theater-match-title">Match Review</span></h2>
+                <button class="modal-close" onclick="closeTheaterMode()" style="position: relative; top: 0; right: 0;">×</button>
+            </div>
+
+            <div id="theater-set-tabs" style="display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 15px;"></div>
+
+            <div style="display: flex; gap: 20px; flex-wrap: wrap;">
+                <div style="flex: 1.4; min-width: 320px;">
+                    <div style="display: flex; align-items: center; justify-content: center; gap: 8px; margin-bottom: 15px; flex-wrap: wrap;">
+                        <button style="background: #3b82f6; font-size: 15px; padding: 8px 12px;" onclick="stopTheaterAutoplay(); jumpToStart();" title="Jump to first point">⏮</button>
+                        <button style="background: #3b82f6; font-size: 18px; padding: 8px 16px;" onclick="manualStepTheaterPoint(-1)" title="Previous point">◀</button>
+                        <div id="theater-score-display" style="font-size: 32px; font-weight: bold; min-width: 130px; text-align: center;">0 – 0</div>
+                        <button style="background: #3b82f6; font-size: 18px; padding: 8px 16px;" onclick="manualStepTheaterPoint(1)" title="Next point">▶</button>
+                        <button style="background: #3b82f6; font-size: 15px; padding: 8px 12px;" onclick="stopTheaterAutoplay(); jumpToEnd();" title="Jump to last point">⏭</button>
+                        <button id="theater-play-btn" style="background: #8b5cf6; font-size: 14px; padding: 8px 14px;" onclick="toggleTheaterAutoplay()" title="Auto-play through the set">▶️ Play</button>
+                    </div>
+
+                    <div style="overflow-x: auto; padding: 10px 0; border-top: 1px solid var(--border-color); border-bottom: 1px solid var(--border-color); margin-bottom: 6px;">
+                        <div id="theater-bars" style="display: flex; gap: 6px; align-items: flex-end; min-height: 70px; padding: 0 4px;"></div>
+                    </div>
+                    <div style="display: flex; gap: 15px; font-size: 11px; color: var(--text-secondary); margin-bottom: 10px; flex-wrap: wrap;">
+                        <span><span style="display:inline-block; width:10px; height:10px; background:var(--team1-color); border-radius:2px; margin-right:4px;"></span>Home point</span>
+                        <span><span style="display:inline-block; width:10px; height:10px; background:var(--team2-color); border-radius:2px; margin-right:4px;"></span>Visitor point</span>
+                        <span>K=Kill · SE/BE/E/BHE=opponent error type · ERR=other · SKIP/PT/OPP=not tagged</span>
+                    </div>
+
+                    <div id="theater-subs-list" style="margin-bottom: 15px;"></div>
+
+                    <div style="background: var(--button-bg); border-radius: 10px; padding: 15px;">
+                        <div id="theater-detail" style="margin-bottom: 10px;">Select a point to review it.</div>
+                        <div id="theater-positions-display"></div>
+                    </div>
+                </div>
+
+                <div style="flex: 1; min-width: 250px; max-width: 340px;">
+                    <h3 style="font-size: 13px; margin-bottom: 8px; color: var(--text-secondary); text-transform: uppercase; letter-spacing: 0.5px;">Point-by-Point Log</h3>
+                    <div id="theater-move-list" style="max-height: 500px; overflow-y: auto; border: 1px solid var(--border-color); border-radius: 8px;"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <div class="modal" id="role-selector-modal">
         <div class="role-selector-modal">
             <button class="modal-close" onclick="closeRoleSelector()">×</button>
@@ -1417,35 +1505,43 @@
                 currentPlan: null,
                 savedPlans: [],
                 selectedPosition: null
-            }
+            },
+            visitorTeamBank: [],
+            matchArchive: [],
+            matchFormat: 3,
+            matchTimeline: []
         };
 
         // Pre-load Tampa Prep roster
         function loadTampaPrepRoster() {
+            // Source: tampaprepathletics.org official 2026 roster (positions not
+            // published there — left blank for the coach to fill in via Manage Roster)
             const tampaPrepPlayers = [
-                { name: 'Evie Styles', jersey: '1', position: 'Middle Hitter', grade: 'Jr.' },
-                { name: 'Lucy Zielin', jersey: '2', position: 'Libero', grade: 'Sr.' },
-                { name: 'Mila Zujovic', jersey: '3', position: 'Setter', grade: 'So.' },
-                { name: 'Shelby Steppacher', jersey: '4', position: 'Outside Hitter', grade: 'Jr.' },
-                { name: 'Karys Sommer', jersey: '5', position: 'Outside Hitter', grade: 'So.' },
-                { name: 'Nikolina Nastic', jersey: '6', position: 'Setter', grade: 'Jr.' },
-                { name: 'Brooke Parker', jersey: '7', position: 'Defensive Specialist', grade: 'Jr.' },
-                { name: 'Leilani Lawrence', jersey: '8', position: 'Outside Hitter', grade: 'Sr.' },
-                { name: 'Reece Taylor', jersey: '9', position: 'Outside Hitter', grade: 'Sr.' },
-                { name: 'Cailyn Fuller', jersey: '10', position: 'Middle Hitter', grade: 'So.' },
-                { name: 'Julianna Manno', jersey: '11', position: 'Middle Hitter', grade: 'Sr.' },
-                { name: 'Sophia Merenda', jersey: '12', position: 'Libero/Outside Hitter', grade: 'So.' },
-                { name: 'Rebecca McDaniel', jersey: '13', position: 'Middle Hitter', grade: 'Jr.' },
-                { name: 'Marleigh Jagdmann', jersey: '14', position: 'Outside Hitter', grade: 'Jr.' }
+                { name: 'Evelina Styles', jersey: '1', grade: 'Sr.' },
+                { name: 'Ashton Paige', jersey: '2', grade: 'Fr.' },
+                { name: 'Mila Zujovic', jersey: '3', grade: 'Jr.' },
+                { name: 'Shelby Steppacher', jersey: '4', grade: 'Sr.' },
+                { name: 'Karys Sommer', jersey: '5', grade: 'Jr.' },
+                { name: 'Gabriella Comey', jersey: '6', grade: 'Fr.' },
+                { name: 'Brooke Parker', jersey: '7', grade: 'Sr.' },
+                { name: 'Addi Rogers', jersey: '8', grade: 'Jr.' },
+                { name: 'Nikolina Nastic', jersey: '9', grade: 'Sr.' },
+                { name: 'Ella Rose Irizarry', jersey: '10', grade: 'Fr.' },
+                { name: 'Julietta Bogado', jersey: '11', grade: 'So.' },
+                { name: 'Sophia Merenda', jersey: '12', grade: 'Jr.' },
+                { name: 'Nyla Keys', jersey: '13', grade: 'Fr.' },
+                { name: 'Marleigh Jagdmann', jersey: '14', grade: 'Sr.' },
+                { name: 'Ryann Taggett', jersey: '15', grade: 'Jr.' },
+                { name: 'Cailyn Fuller', jersey: '16', grade: 'Jr.' }
             ];
 
             state.home.roster = tampaPrepPlayers.map((player, idx) => ({
                 id: Date.now() + idx,
                 name: player.name,
                 jersey: player.jersey,
-                position: player.position,
+                position: '',
                 grade: player.grade,
-                libero: player.position.includes('Libero'),
+                libero: false,
                 stats: {
                     GP: 0, SA: 0, A: 0, SE: 0, PTS: 0, ATT: 0, K: 0, E: 0,
                     R: 0, RE: 0, BS: 0, BA: 0, BE: 0, BHA: 0, AST: 0, BHE: 0, D: 0
@@ -1455,6 +1551,48 @@
             // Set team name
             document.getElementById('home-name').textContent = 'Tampa Prep Terrapins';
             document.getElementById('home-team-name').value = 'Tampa Prep Terrapins';
+        }
+
+        // Pre-seed the visitor team bank with rosters the coach has already collected.
+        // Only runs on first launch (see init()) so it never clobbers saved-team edits.
+        function seedVisitorTeamBank() {
+            const seedTeams = [
+                {
+                    name: 'Miami Country Day Spartans',
+                    players: [
+                        { name: 'Kendall Fugate', jersey: '1', grade: 'Fr.' },
+                        { name: 'Serenity Ukegbu', jersey: '2', grade: 'Jr.' },
+                        { name: 'Sasha Blasky', jersey: '3', grade: 'Sr.' },
+                        { name: 'Isabella Lopez', jersey: '4', grade: 'Sr.' },
+                        { name: 'Athena Tolles', jersey: '5', grade: 'Fr.' },
+                        { name: 'Skylar Mandel', jersey: '7', grade: 'So.' },
+                        { name: 'Olivia Eaton', jersey: '8', grade: 'So.' },
+                        { name: 'Giulia Risso', jersey: '11', grade: 'Jr.' },
+                        { name: 'Ines Gorham', jersey: '12', grade: 'Sr.' },
+                        { name: 'Madeline Sinnes', jersey: '14', grade: 'Sr.' },
+                        { name: 'Gala Bernad', jersey: '15', grade: 'Jr.' },
+                        { name: 'Ariel Stern', jersey: '16', grade: 'So.' }
+                    ]
+                }
+            ];
+
+            state.visitorTeamBank = seedTeams.map((team, tIdx) => ({
+                id: Date.now() + tIdx,
+                name: team.name,
+                savedAt: new Date().toISOString(),
+                roster: team.players.map((player, idx) => ({
+                    id: Date.now() + tIdx * 1000 + idx,
+                    name: player.name,
+                    jersey: player.jersey,
+                    position: '',
+                    grade: player.grade,
+                    libero: false,
+                    stats: {
+                        GP: 0, SA: 0, A: 0, SE: 0, PTS: 0, ATT: 0, K: 0, E: 0,
+                        R: 0, RE: 0, BS: 0, BA: 0, BE: 0, BHA: 0, AST: 0, BHE: 0, D: 0
+                    }
+                }))
+            }));
         }
 
         // Generic visitor positions (roles only, no names)
@@ -1597,6 +1735,9 @@
 
                 // Load generic visitor positions
                 loadGenericVisitorPositions();
+
+                // Pre-load any opponent rosters the coach has already collected
+                seedVisitorTeamBank();
             }
 
             updateCourt('home');
@@ -1689,8 +1830,15 @@
             `).join('');
         }
 
+        let pendingPointEvent = null;
+
+        function snapshotCourt(team) {
+            return state[team].positions.map(p => p ? { name: p.name, jersey: p.jersey || '' } : null);
+        }
+
         function addScore(team) {
             const opponent = team === 'home' ? 'visitor' : 'home';
+            const servingTeamBefore = state[opponent].serving ? opponent : team;
             
             if (!state.gameStarted) {
                 state.gameStarted = true;
@@ -1711,12 +1859,51 @@
             
             updateCourt('home');
             updateCourt('visitor');
+
+            pendingPointEvent = {
+                id: Date.now() + Math.random(),
+                type: 'point',
+                setNumber: state.setHistory.length + 1,
+                seq: state.matchTimeline.length,
+                scoringTeam: team,
+                homeScore: state.home.score,
+                visitorScore: state.visitor.score,
+                servingTeamBefore: servingTeamBefore,
+                homePositions: snapshotCourt('home'),
+                visitorPositions: snapshotCourt('visitor'),
+                code: null,
+                playerName: null,
+                playerJersey: null,
+                timestamp: new Date().toISOString()
+            };
             
             if (state.statsEnabled && team === 'home') {
                 showStatsModal();
             } else if (state.statsEnabled && team === 'visitor') {
                 showOpponentScoreModal();
+            } else {
+                // Stats tracking is off — still log the point for match review,
+                // just without a "how" attribution.
+                finalizePoint(team === 'home' ? 'PT' : 'OPP', null);
             }
+        }
+
+        // Finalizes the in-flight point event started by addScore() and pushes it
+        // to the match timeline. Called from every terminal branch of the stat
+        // wizard (including every "Skip" path) so no point ever goes unlogged.
+        function finalizePoint(code, player) {
+            if (!pendingPointEvent) {
+                closeStatsModal();
+                return;
+            }
+            if (code) pendingPointEvent.code = code;
+            if (player) {
+                pendingPointEvent.playerName = player.name;
+                pendingPointEvent.playerJersey = player.jersey || '';
+            }
+            state.matchTimeline.push(pendingPointEvent);
+            pendingPointEvent = null;
+            closeStatsModal();
         }
 
         function saveHistory(team) {
@@ -1741,6 +1928,19 @@
             state[opponent].serving = lastState.opponentServing;
             
             document.getElementById(`${team}-score`).textContent = state[team].score;
+
+            // Keep the match timeline in sync with the score. If a stat wizard
+            // is still open for the point being undone, discard it; otherwise
+            // pop the matching event off the end of the log.
+            if (pendingPointEvent && pendingPointEvent.scoringTeam === team) {
+                pendingPointEvent = null;
+                closeStatsModal();
+            } else {
+                const last = state.matchTimeline[state.matchTimeline.length - 1];
+                if (last && last.type === 'point' && last.scoringTeam === team) {
+                    state.matchTimeline.pop();
+                }
+            }
             
             updateCourt('home');
             updateCourt('visitor');
@@ -1757,16 +1957,49 @@
 
         function openRoster(team) {
             state.currentTeam = team;
+            cancelEditPlayer();
             document.getElementById('roster-modal').classList.add('active');
+            document.getElementById('roster-modal-header').textContent =
+                team === 'visitor' ? 'Manage Visitor Roster' : 'Manage Roster';
+
+            const bankSection = document.getElementById('visitor-team-bank-section');
+            if (team === 'visitor') {
+                bankSection.style.display = 'block';
+                updateTeamBankList();
+            } else {
+                bankSection.style.display = 'none';
+            }
+
             updateRosterList();
         }
 
         function closeRoster() {
             document.getElementById('roster-modal').classList.remove('active');
+            cancelEditPlayer();
+        }
+
+        let editingPlayerId = null;
+
+        function startEditPlayer(id) {
+            const player = state[state.currentTeam].roster.find(p => p.id === id);
+            if (!player) return;
+            editingPlayerId = id;
+            document.getElementById('player-name').value = player.name;
+            document.getElementById('player-jersey').value = player.jersey || '';
+            document.getElementById('player-position').value = player.position || '';
+            document.getElementById('player-libero').checked = !!player.libero;
+            document.getElementById('roster-form-submit-btn').textContent = 'Update Player';
+            document.getElementById('roster-form-cancel-btn').style.display = 'block';
+        }
+
+        function cancelEditPlayer() {
+            editingPlayerId = null;
             document.getElementById('player-name').value = '';
             document.getElementById('player-jersey').value = '';
             document.getElementById('player-position').value = '';
             document.getElementById('player-libero').checked = false;
+            document.getElementById('roster-form-submit-btn').textContent = 'Add Player';
+            document.getElementById('roster-form-cancel-btn').style.display = 'none';
         }
 
         function addPlayer() {
@@ -1775,28 +2008,34 @@
                 alert('Player name is required');
                 return;
             }
-            
-            const player = {
-                id: Date.now(),
-                name: name,
-                jersey: document.getElementById('player-jersey').value,
-                position: document.getElementById('player-position').value,
-                libero: document.getElementById('player-libero').checked,
-                stats: {
-                    GP: 0, SA: 0, A: 0, SE: 0, PTS: 0, ATT: 0, K: 0, E: 0,
-                    R: 0, RE: 0, BS: 0, BA: 0, BE: 0, BHA: 0, AST: 0, BHE: 0, D: 0
+
+            if (editingPlayerId !== null) {
+                const player = state[state.currentTeam].roster.find(p => p.id === editingPlayerId);
+                if (player) {
+                    player.name = name;
+                    player.jersey = document.getElementById('player-jersey').value;
+                    player.position = document.getElementById('player-position').value;
+                    player.libero = document.getElementById('player-libero').checked;
                 }
-            };
-            
-            state[state.currentTeam].roster.push(player);
+            } else {
+                const player = {
+                    id: Date.now(),
+                    name: name,
+                    jersey: document.getElementById('player-jersey').value,
+                    position: document.getElementById('player-position').value,
+                    libero: document.getElementById('player-libero').checked,
+                    stats: {
+                        GP: 0, SA: 0, A: 0, SE: 0, PTS: 0, ATT: 0, K: 0, E: 0,
+                        R: 0, RE: 0, BS: 0, BA: 0, BE: 0, BHA: 0, AST: 0, BHE: 0, D: 0
+                    }
+                };
+                state[state.currentTeam].roster.push(player);
+            }
+
+            cancelEditPlayer();
             updateRosterList();
             updateBench(state.currentTeam);
             updateStatsTable();
-            
-            document.getElementById('player-name').value = '';
-            document.getElementById('player-jersey').value = '';
-            document.getElementById('player-position').value = '';
-            document.getElementById('player-libero').checked = false;
         }
 
         function updateRosterList() {
@@ -1811,26 +2050,334 @@
                         ${player.position ? `- ${player.position}` : ''}
                         ${player.libero ? ' (Libero)' : ''}
                     </div>
-                    <button class="btn-delete" onclick="deletePlayer(${player.id})">Delete</button>
+                    <div style="display: flex; gap: 6px;">
+                        <button class="btn-rotation" style="background: #3b82f6;" onclick="startEditPlayer(${player.id})">Edit</button>
+                        <button class="btn-delete" onclick="deletePlayer(${player.id})">Delete</button>
+                    </div>
                 </div>
             `).join('');
         }
 
         function deletePlayer(id) {
             state[state.currentTeam].roster = state[state.currentTeam].roster.filter(p => p.id !== id);
+            if (editingPlayerId === id) cancelEditPlayer();
             updateRosterList();
             updateBench(state.currentTeam);
             updateStatsTable();
         }
 
-        function saveRotation(team) {
-            const positions = state[team].positions;
-            const emptyPositions = positions.filter(p => p === null).length;
-            
-            if (emptyPositions > 0) {
-                alert('Cannot save rotation!\n\nAll 6 positions must be filled.\n\nEmpty positions: ' + emptyPositions);
+        /* ═══════════════════════════════════════════════════════════════════
+           VISITOR TEAM BANK — build, save, and reload opponent rosters
+           ═══════════════════════════════════════════════════════════════════ */
+
+        function blankStatLine() {
+            return {
+                GP: 0, SA: 0, A: 0, SE: 0, PTS: 0, ATT: 0, K: 0, E: 0,
+                R: 0, RE: 0, BS: 0, BA: 0, BE: 0, BHA: 0, AST: 0, BHE: 0, D: 0
+            };
+        }
+
+        function saveVisitorTeamToBank() {
+            if (state.visitor.roster.length === 0) {
+                alert('Add players to the visitor roster below before saving it to the team bank.');
                 return;
             }
+
+            const defaultName = document.getElementById('visitor-name').textContent;
+            const name = prompt('Save this roster to the team bank as:', defaultName || 'New Team');
+            if (!name || !name.trim()) return;
+            const trimmedName = name.trim();
+
+            // Save a clean template: strip live game stats so reloading later
+            // starts that opponent fresh for the next match.
+            const rosterCopy = state.visitor.roster.map(p => ({
+                name: p.name,
+                jersey: p.jersey,
+                position: p.position,
+                grade: p.grade || '',
+                libero: !!p.libero
+            }));
+
+            const existingIdx = state.visitorTeamBank.findIndex(
+                t => t.name.toLowerCase() === trimmedName.toLowerCase()
+            );
+
+            if (existingIdx >= 0) {
+                if (!confirm(`"${trimmedName}" already exists in the team bank. Overwrite it?`)) return;
+                state.visitorTeamBank[existingIdx] = {
+                    ...state.visitorTeamBank[existingIdx],
+                    roster: rosterCopy,
+                    savedAt: new Date().toISOString()
+                };
+            } else {
+                state.visitorTeamBank.push({
+                    id: Date.now(),
+                    name: trimmedName,
+                    savedAt: new Date().toISOString(),
+                    roster: rosterCopy
+                });
+            }
+
+            updateTeamBankList();
+            saveToLocalStorage();
+        }
+
+        function loadVisitorTeamFromBank(teamId) {
+            const team = state.visitorTeamBank.find(t => t.id === teamId);
+            if (!team) return;
+
+            if (state.visitor.roster.length > 0 &&
+                !confirm(`Load "${team.name}"? This replaces the current visitor roster (${state.visitor.roster.length} players) and clears the visitor court/bench.`)) {
+                return;
+            }
+
+            state.visitor.roster = team.roster.map((p, idx) => ({
+                id: Date.now() + idx,
+                name: p.name,
+                jersey: p.jersey,
+                position: p.position,
+                grade: p.grade || '',
+                libero: !!p.libero,
+                stats: blankStatLine()
+            }));
+            state.visitor.positions = [null, null, null, null, null, null];
+
+            document.getElementById('visitor-name').textContent = team.name;
+            document.getElementById('visitor-team-name').value = team.name;
+
+            // A loaded roster means real players, not generic role placeholders
+            if (!state.visitorRosterEnabled) {
+                state.visitorRosterEnabled = true;
+                const toggle = document.getElementById('visitor-roster-toggle');
+                if (toggle) toggle.classList.add('active');
+            }
+
+            updateRosterList();
+            updateBench('visitor');
+            updateCourt('visitor');
+            updateStatsTable();
+            updateVisitorDisplay();
+            saveToLocalStorage();
+        }
+
+        function deleteVisitorTeamFromBank(teamId) {
+            const team = state.visitorTeamBank.find(t => t.id === teamId);
+            if (!team) return;
+            if (!confirm(`Delete "${team.name}" from the team bank? This cannot be undone.`)) return;
+            state.visitorTeamBank = state.visitorTeamBank.filter(t => t.id !== teamId);
+            updateTeamBankList();
+            saveToLocalStorage();
+        }
+
+        function updateTeamBankList() {
+            const container = document.getElementById('visitor-team-bank-list');
+            if (!container) return;
+
+            if (state.visitorTeamBank.length === 0) {
+                container.innerHTML = '<p style="color: var(--text-secondary); font-size: 13px;">No saved teams yet. Build a roster below, then save it here.</p>';
+                return;
+            }
+
+            container.innerHTML = state.visitorTeamBank.map(t => `
+                <div style="display: flex; justify-content: space-between; align-items: center; padding: 8px 10px; border: 1px solid var(--border-color); border-radius: 6px; margin-bottom: 6px; background: var(--card-bg);">
+                    <span><strong>${t.name}</strong> <span style="color: var(--text-secondary); font-size: 12px;">(${t.roster.length} players)</span></span>
+                    <div style="display: flex; gap: 6px;">
+                        <button class="btn-rotation" style="background: #3b82f6;" onclick="loadVisitorTeamFromBank(${t.id})">Load</button>
+                        <button class="btn-delete" onclick="deleteVisitorTeamFromBank(${t.id})">Delete</button>
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        /* ═══════════════════════════════════════════════════════════════════
+           ROSTER PORTABILITY — move rosters between browsers/devices as plain
+           JSON files (AirDrop, email, Slack, text) with no code deploy needed
+           ═══════════════════════════════════════════════════════════════════ */
+
+        function downloadJSON(obj, filename) {
+            const blob = new Blob([JSON.stringify(obj, null, 2)], { type: 'application/json' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = filename;
+            document.body.appendChild(a);
+            a.click();
+            a.remove();
+            URL.revokeObjectURL(url);
+        }
+
+        function slugify(s) {
+            return (s || 'team').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '') || 'team';
+        }
+
+        function cleanRosterForExport(roster) {
+            return roster.map(p => ({
+                name: p.name,
+                jersey: p.jersey || '',
+                position: p.position || '',
+                grade: p.grade || '',
+                libero: !!p.libero
+            }));
+        }
+
+        function exportRoster(team) {
+            const roster = state[team].roster;
+            if (roster.length === 0) {
+                alert('This roster is empty — nothing to export.');
+                return;
+            }
+            const teamName = team === 'home'
+                ? document.getElementById('home-name').textContent
+                : document.getElementById('visitor-name').textContent;
+
+            downloadJSON({
+                type: 'court-commander-roster',
+                version: 1,
+                teamName: teamName,
+                exportedAt: new Date().toISOString(),
+                roster: cleanRosterForExport(roster)
+            }, `roster-${slugify(teamName)}.json`);
+        }
+
+        function importRosterFile(input) {
+            const file = input.files && input.files[0];
+            if (!file) return;
+
+            const reader = new FileReader();
+            reader.onload = (e) => {
+                let payload;
+                try {
+                    payload = JSON.parse(e.target.result);
+                } catch (err) {
+                    alert('That file is not valid JSON.');
+                    input.value = '';
+                    return;
+                }
+                if (!payload || payload.type !== 'court-commander-roster' || !Array.isArray(payload.roster)) {
+                    alert('That file doesn\'t look like a Court Commander roster export.');
+                    input.value = '';
+                    return;
+                }
+
+                const team = state.currentTeam;
+
+                if (team === 'home') {
+                    if (!confirm(`Replace the current home roster (${state.home.roster.length} players) with "${payload.teamName}" (${payload.roster.length} players)?`)) {
+                        input.value = '';
+                        return;
+                    }
+                    state.home.roster = payload.roster.map((p, idx) => ({
+                        id: Date.now() + idx,
+                        name: p.name,
+                        jersey: p.jersey || '',
+                        position: p.position || '',
+                        grade: p.grade || '',
+                        libero: !!p.libero,
+                        stats: blankStatLine()
+                    }));
+                    updateRosterList();
+                    updateBench('home');
+                    updateStatsTable();
+                } else {
+                    // Visitor imports go into the Team Bank rather than straight onto
+                    // the court, so an import never silently disrupts a live game.
+                    const name = prompt('Save this imported roster to the Team Bank as:', payload.teamName || 'Imported Team');
+                    if (!name || !name.trim()) { input.value = ''; return; }
+                    const trimmedName = name.trim();
+                    const existingIdx = state.visitorTeamBank.findIndex(t => t.name.toLowerCase() === trimmedName.toLowerCase());
+                    const entry = {
+                        id: existingIdx >= 0 ? state.visitorTeamBank[existingIdx].id : Date.now(),
+                        name: trimmedName,
+                        savedAt: new Date().toISOString(),
+                        roster: cleanRosterForExport(payload.roster)
+                    };
+                    if (existingIdx >= 0) {
+                        if (!confirm(`"${trimmedName}" already exists in the team bank. Overwrite it?`)) { input.value = ''; return; }
+                        state.visitorTeamBank[existingIdx] = entry;
+                    } else {
+                        state.visitorTeamBank.push(entry);
+                    }
+                    updateTeamBankList();
+                }
+
+                saveToLocalStorage();
+                input.value = '';
+            };
+            reader.readAsText(file);
+        }
+
+        function exportTeamBank() {
+            if (state.visitorTeamBank.length === 0) {
+                alert('The team bank is empty — nothing to export.');
+                return;
+            }
+            downloadJSON({
+                type: 'court-commander-team-bank',
+                version: 1,
+                exportedAt: new Date().toISOString(),
+                teams: state.visitorTeamBank.map(t => ({
+                    name: t.name,
+                    roster: cleanRosterForExport(t.roster)
+                }))
+            }, 'court-commander-team-bank.json');
+        }
+
+        function importTeamBankFile(input) {
+            const file = input.files && input.files[0];
+            if (!file) return;
+
+            const reader = new FileReader();
+            reader.onload = (e) => {
+                let payload;
+                try {
+                    payload = JSON.parse(e.target.result);
+                } catch (err) {
+                    alert('That file is not valid JSON.');
+                    input.value = '';
+                    return;
+                }
+                if (!payload || payload.type !== 'court-commander-team-bank' || !Array.isArray(payload.teams)) {
+                    alert('That file doesn\'t look like a Court Commander team bank export.');
+                    input.value = '';
+                    return;
+                }
+
+                let added = 0, overwritten = 0, skipped = 0;
+                payload.teams.forEach(team => {
+                    if (!team || !team.name || !Array.isArray(team.roster)) { skipped++; return; }
+                    const existingIdx = state.visitorTeamBank.findIndex(t => t.name.toLowerCase() === team.name.toLowerCase());
+                    if (existingIdx >= 0) {
+                        if (confirm(`"${team.name}" already exists in your team bank. Overwrite it? (Cancel = skip this one)`)) {
+                            state.visitorTeamBank[existingIdx] = {
+                                ...state.visitorTeamBank[existingIdx],
+                                roster: cleanRosterForExport(team.roster),
+                                savedAt: new Date().toISOString()
+                            };
+                            overwritten++;
+                        } else {
+                            skipped++;
+                        }
+                    } else {
+                        state.visitorTeamBank.push({
+                            id: Date.now() + Math.floor(Math.random() * 100000),
+                            name: team.name,
+                            savedAt: new Date().toISOString(),
+                            roster: cleanRosterForExport(team.roster)
+                        });
+                        added++;
+                    }
+                });
+
+                updateTeamBankList();
+                saveToLocalStorage();
+                alert(`Imported: ${added} new team(s), ${overwritten} overwritten, ${skipped} skipped.`);
+                input.value = '';
+            };
+            reader.readAsText(file);
+        }
+
+        function saveRotation(team) {
+            const positions = state[team].positions;
             
             const name = prompt('Enter rotation name:');
             if (!name || name.trim() === '') return;
@@ -2157,6 +2704,22 @@
                     position: positionIdx
                 });
             }
+
+            state.matchTimeline.push({
+                id: Date.now() + Math.random(),
+                type: 'substitution',
+                setNumber: state.setHistory.length + 1,
+                seq: state.matchTimeline.length,
+                team: team,
+                positionIdx: positionIdx,
+                playerOutName: oldPlayer.name,
+                playerOutJersey: oldPlayer.jersey || '',
+                playerInName: newPlayer.name,
+                playerInJersey: newPlayer.jersey || '',
+                homeScore: state.home.score,
+                visitorScore: state.visitor.score,
+                timestamp: new Date().toISOString()
+            });
             
             state[team].positions[positionIdx] = newPlayer;
             updateCourt(team);
@@ -2173,6 +2736,7 @@
             const players = state.home.positions.filter(p => p !== null);
             
             if (players.length === 0) {
+                finalizePoint('SKIP', null);
                 return;
             }
             
@@ -2181,7 +2745,7 @@
                 <button class="modal-button" onclick="recordKill(${player.id})">
                     ${player.jersey ? `#${player.jersey}` : ''} ${player.name}
                 </button>
-            `).join('') + '<button class="btn-skip" onclick="closeStatsModal()">Skip</button>';
+            `).join('') + '<button class="btn-skip" onclick="finalizePoint(\'SKIP\', null)">Skip</button>';
             
             modal.classList.add('active');
         }
@@ -2195,6 +2759,12 @@
             player.stats.PTS++;
             
             updateStatsTable();
+
+            if (pendingPointEvent) {
+                pendingPointEvent.code = 'K';
+                pendingPointEvent.playerName = player.name;
+                pendingPointEvent.playerJersey = player.jersey || '';
+            }
             
             const question = document.getElementById('stats-question');
             const buttons = document.getElementById('stats-buttons');
@@ -2205,7 +2775,7 @@
                 <button class="modal-button" onclick="recordAssist(${p.id})">
                     ${p.jersey ? `#${p.jersey}` : ''} ${p.name}
                 </button>
-            `).join('') + '<button class="btn-skip" onclick="closeStatsModal()">No Assist</button>';
+            `).join('') + '<button class="btn-skip" onclick="finalizePoint(null, null)">No Assist</button>';
         }
 
         function recordAssist(playerId) {
@@ -2213,8 +2783,9 @@
             if (player) {
                 player.stats.AST++;
                 updateStatsTable();
+                if (pendingPointEvent) pendingPointEvent.assistName = player.name;
             }
-            closeStatsModal();
+            finalizePoint(null, null);
         }
 
         function showOpponentScoreModal() {
@@ -2259,12 +2830,12 @@
             }
             state.visitor.teamKills++;
             updateStatsTable();
-            closeStatsModal();
+            finalizePoint('K', player);
         }
 
         function recordVisitorTeamKill() {
             state.visitor.teamKills++;
-            closeStatsModal();
+            finalizePoint('K', null);
         }
 
         function showErrorOptions() {
@@ -2277,7 +2848,7 @@
                 <button class="modal-button" onclick="recordError('BE')">Block Error</button>
                 <button class="modal-button" onclick="recordError('E')">Attack Error</button>
                 <button class="modal-button" onclick="recordError('BHE')">Ball Handling Error</button>
-                <button class="btn-skip" onclick="closeStatsModal()">Other</button>
+                <button class="btn-skip" onclick="finalizePoint('ERR', null)">Other</button>
             `;
         }
 
@@ -2285,9 +2856,11 @@
             const question = document.getElementById('stats-question');
             const buttons = document.getElementById('stats-buttons');
             const players = state.home.positions.filter(p => p !== null);
+
+            if (pendingPointEvent) pendingPointEvent.code = errorType;
             
             if (players.length === 0) {
-                closeStatsModal();
+                finalizePoint(errorType, null);
                 return;
             }
             
@@ -2296,7 +2869,7 @@
                 <button class="modal-button" onclick="recordPlayerError(${p.id}, '${errorType}')">
                     ${p.jersey ? `#${p.jersey}` : ''} ${p.name}
                 </button>
-            `).join('') + '<button class="btn-skip" onclick="closeStatsModal()">Skip</button>';
+            `).join('') + `<button class="btn-skip" onclick="finalizePoint('${errorType}', null)">Skip</button>`;
         }
 
         function recordPlayerError(playerId, errorType) {
@@ -2308,7 +2881,7 @@
                 }
                 updateStatsTable();
             }
-            closeStatsModal();
+            finalizePoint(errorType, player);
         }
 
         function closeStatsModal() {
@@ -2629,12 +3202,34 @@
             
             updateCourt('home');
             updateCourt('visitor');
-            
-            alert(`Set ${setNumber} final score recorded:\n${document.getElementById('home-name').textContent}: ${state.setHistory[setNumber - 1].homeScore}\n${document.getElementById('visitor-name').textContent}: ${state.setHistory[setNumber - 1].visitorScore}`);
+
+            const homeTeamName = document.getElementById('home-name').textContent;
+            const visitorTeamName = document.getElementById('visitor-name').textContent;
+            const setsWonHome = state.setHistory.filter(s => s.homeScore > s.visitorScore).length;
+            const setsWonVisitor = state.setHistory.filter(s => s.visitorScore > s.homeScore).length;
+            const setsToWin = Math.ceil(state.matchFormat / 2);
+
+            if (setsWonHome >= setsToWin || setsWonVisitor >= setsToWin) {
+                const winnerName = setsWonHome > setsWonVisitor ? homeTeamName : visitorTeamName;
+                alert(`Set ${setNumber} final score recorded:\n${homeTeamName}: ${state.setHistory[setNumber - 1].homeScore}\n${visitorTeamName}: ${state.setHistory[setNumber - 1].visitorScore}\n\n🏆 Match complete! ${winnerName} wins ${Math.max(setsWonHome, setsWonVisitor)}–${Math.min(setsWonHome, setsWonVisitor)} (best of ${state.matchFormat})\n\nOpen Match History to save this match before starting a new one.`);
+            } else {
+                alert(`Set ${setNumber} final score recorded:\n${homeTeamName}: ${state.setHistory[setNumber - 1].homeScore}\n${visitorTeamName}: ${state.setHistory[setNumber - 1].visitorScore}\n\nSets: ${homeTeamName} ${setsWonHome} – ${setsWonVisitor} ${visitorTeamName} (best of ${state.matchFormat}, first to ${setsToWin})`);
+            }
         }
 
         function resetAll() {
-            if (!confirm('⚠️ Reset ALL scores and stats?\n\nThis will:\n• Clear all scores\n• Reset all player statistics to 0\n• Clear set history\n• Reset substitution counters\n\nThis action cannot be undone!')) return;
+            const hasMatchData = state.setHistory.length > 0 || state.home.score > 0 || state.visitor.score > 0;
+            if (hasMatchData) {
+                if (confirm('Save this match to Match History before resetting?\n\nRecommended — this is your only chance to keep the final score, stats, and point-by-point replay once you reset.')) {
+                    archiveCurrentMatch();
+                }
+            }
+
+            if (!confirm('⚠️ Start a new match?\n\nThis will:\n• Clear all scores\n• Reset all player statistics to 0\n• Clear set history and point-by-point replay data\n• Reset substitution counters\n\nThis action cannot be undone!')) return;
+
+            state.matchFormat = confirm('Best-of-5 match?\n\nOK = best of 5 (first to 3 sets)\nCancel = best of 3 (first to 2 sets)') ? 5 : 3;
+            state.matchTimeline = [];
+            pendingPointEvent = null;
             
             state.home.score = 0;
             state.visitor.score = 0;
@@ -2674,6 +3269,539 @@
             updateStatsTable();
             
             alert('✅ All scores and stats have been reset!');
+        }
+
+        /* ═══════════════════════════════════════════════════════════════════
+           MATCH HISTORY — permanent season archive, separate from live state
+           ═══════════════════════════════════════════════════════════════════ */
+
+        function archiveCurrentMatch() {
+            const hasMatchData = state.setHistory.length > 0 || state.home.score > 0 || state.visitor.score > 0;
+            if (!hasMatchData) {
+                alert('There\'s no match data yet to save — play at least part of a set first.');
+                return;
+            }
+
+            const homeTeamName = document.getElementById('home-name').textContent;
+            const visitorTeamName = document.getElementById('visitor-name').textContent;
+
+            // Include the set currently in progress (if any) alongside completed sets
+            const sets = state.setHistory.map(s => ({ ...s }));
+            if (state.home.score > 0 || state.visitor.score > 0) {
+                sets.push({
+                    setNumber: sets.length + 1,
+                    homeScore: state.home.score,
+                    visitorScore: state.visitor.score,
+                    homeKills: state.home.teamKills,
+                    visitorKills: state.visitor.teamKills,
+                    date: new Date().toLocaleString(),
+                    inProgress: true
+                });
+            }
+
+            const setsWonHome = sets.filter(s => s.homeScore > s.visitorScore).length;
+            const setsWonVisitor = sets.filter(s => s.visitorScore > s.homeScore).length;
+
+            const snapshotRoster = (roster) => roster.map(p => ({
+                name: p.name,
+                jersey: p.jersey,
+                position: p.position,
+                stats: { ...p.stats }
+            }));
+
+            const match = {
+                id: Date.now(),
+                date: new Date().toISOString(),
+                homeTeamName,
+                visitorTeamName,
+                sets,
+                setsWonHome,
+                setsWonVisitor,
+                matchFormat: state.matchFormat,
+                timeline: JSON.parse(JSON.stringify(state.matchTimeline)),
+                homeRoster: snapshotRoster(state.home.roster),
+                visitorRoster: state.visitorRosterEnabled ? snapshotRoster(state.visitor.roster) : []
+            };
+
+            state.matchArchive.unshift(match);
+            saveToLocalStorage();
+            updateMatchHistoryList();
+        }
+
+        function openMatchHistory() {
+            document.getElementById('match-history-modal').classList.add('active');
+            updateMatchHistoryList();
+        }
+
+        function closeMatchHistory() {
+            document.getElementById('match-history-modal').classList.remove('active');
+        }
+
+        function deleteMatchFromHistory(id) {
+            if (!confirm('Delete this match from history? This cannot be undone.')) return;
+            state.matchArchive = state.matchArchive.filter(m => m.id !== id);
+            saveToLocalStorage();
+            updateMatchHistoryList();
+        }
+
+        function updateMatchHistoryList() {
+            const container = document.getElementById('match-history-list');
+            if (!container) return;
+
+            if (state.matchArchive.length === 0) {
+                container.innerHTML = '<p style="color: var(--text-secondary); text-align: center; padding: 30px 0;">No matches saved yet. Play a match, then click "Save Current Match" — or reset scores and you\'ll be offered the chance to archive first.</p>';
+                return;
+            }
+
+            container.innerHTML = state.matchArchive.map(m => {
+                const dateLabel = new Date(m.date).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' });
+                const result = m.setsWonHome === m.setsWonVisitor
+                    ? `${m.setsWonHome}–${m.setsWonVisitor}`
+                    : `${m.setsWonHome}–${m.setsWonVisitor} ${m.setsWonHome > m.setsWonVisitor ? '(Home W)' : '(Home L)'}`;
+
+                const setsRows = m.sets.map(s => `
+                    <tr>
+                        <td>${s.inProgress ? 'In progress' : 'Set ' + s.setNumber}</td>
+                        <td>${s.homeScore}</td>
+                        <td>${s.visitorScore}</td>
+                    </tr>
+                `).join('');
+
+                return `
+                    <div style="border: 1px solid var(--border-color); border-radius: 10px; padding: 15px; margin-bottom: 12px;">
+                        <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px;">
+                            <div>
+                                <strong style="font-size: 16px;">${m.homeTeamName} vs ${m.visitorTeamName}</strong>
+                                <div style="color: var(--text-secondary); font-size: 12px;">${dateLabel} · Sets ${result}</div>
+                            </div>
+                            <div style="display: flex; gap: 8px;">
+                                <button class="btn-rotation" style="background: #6366f1;" onclick="openTheaterModeArchived(${m.id})">🎬 Review</button>
+                                <button class="btn-rotation" style="background: #8b5cf6;" onclick="exportMatchToDocument(${m.id})">📄 Export</button>
+                                <button class="btn-delete" onclick="deleteMatchFromHistory(${m.id})">Delete</button>
+                            </div>
+                        </div>
+                        <table class="stats-table" style="margin-top: 10px; font-size: 13px;">
+                            <thead><tr><th></th><th>${m.homeTeamName}</th><th>${m.visitorTeamName}</th></tr></thead>
+                            <tbody>${setsRows}</tbody>
+                        </table>
+                    </div>
+                `;
+            }).join('');
+        }
+
+        function exportMatchToDocument(id) {
+            const m = state.matchArchive.find(x => x.id === id);
+            if (!m) return;
+
+            const dateLabel = new Date(m.date).toLocaleDateString();
+            const setsRows = m.sets.map(s => `
+                <tr>
+                    <td>${s.inProgress ? 'In progress' : 'Set ' + s.setNumber}</td>
+                    <td style="text-align:center; font-weight:bold;">${s.homeScore}</td>
+                    <td style="text-align:center; font-weight:bold;">${s.visitorScore}</td>
+                </tr>
+            `).join('');
+
+            const statCols = ['K', 'E', 'A', 'SA', 'SE', 'D', 'BS', 'BA', 'BE'];
+            const rosterTable = (roster, teamName) => roster.length === 0 ? '' : `
+                <h3 style="margin: 20px 0 8px;">${teamName} — Player Stats</h3>
+                <table class="stats-table" style="width:100%; border-collapse: collapse; font-size: 12px;">
+                    <thead><tr>
+                        <th style="border:1px solid #999; padding:4px;">#</th>
+                        <th style="border:1px solid #999; padding:4px; text-align:left;">Name</th>
+                        ${statCols.map(c => `<th style="border:1px solid #999; padding:4px;">${c}</th>`).join('')}
+                    </tr></thead>
+                    <tbody>
+                        ${roster.map(p => `
+                            <tr>
+                                <td style="border:1px solid #999; padding:4px; text-align:center;">${p.jersey || ''}</td>
+                                <td style="border:1px solid #999; padding:4px;">${p.name}</td>
+                                ${statCols.map(c => `<td style="border:1px solid #999; padding:4px; text-align:center;">${p.stats[c] || 0}</td>`).join('')}
+                            </tr>
+                        `).join('')}
+                    </tbody>
+                </table>
+            `;
+
+            const printWindow = window.open('', '_blank');
+            const doc = printWindow.document;
+            doc.write(`
+                <!DOCTYPE html>
+                <html>
+                <head>
+                    <meta charset="UTF-8">
+                    <title>${m.homeTeamName} vs ${m.visitorTeamName} - ${dateLabel}</title>
+                    <style>
+                        * { margin: 0; padding: 0; box-sizing: border-box; }
+                        body { font-family: Arial, sans-serif; padding: 20px; background: white; color: black; }
+                        .header { text-align: center; margin-bottom: 20px; border-bottom: 3px solid #333; padding-bottom: 15px; }
+                        .header h1 { font-size: 24px; margin-bottom: 8px; }
+                        table.stats-table { width: 100%; border-collapse: collapse; margin-bottom: 10px; }
+                        table.stats-table th, table.stats-table td { border: 1px solid #999; padding: 6px; text-align: center; }
+                        table.stats-table th { background: #333; color: white; }
+                        @media print { body { padding: 10px; } }
+                    </style>
+                </head>
+                <body>
+                    <div class="header">
+                        <h1>${m.homeTeamName} vs ${m.visitorTeamName}</h1>
+                        <p style="color:#666; margin-top:5px;">${dateLabel} · Final Sets: ${m.setsWonHome}–${m.setsWonVisitor}</p>
+                    </div>
+                    <table class="stats-table">
+                        <thead><tr><th></th><th>${m.homeTeamName}</th><th>${m.visitorTeamName}</th></tr></thead>
+                        <tbody>${setsRows}</tbody>
+                    </table>
+                    ${rosterTable(m.homeRoster, m.homeTeamName)}
+                    ${rosterTable(m.visitorRoster, m.visitorTeamName)}
+                </body>
+                </html>
+            `);
+            doc.close();
+            setTimeout(() => printWindow.print(), 250);
+        }
+
+        /* ═══════════════════════════════════════════════════════════════════
+           GAME REVIEW THEATER — chess.com-style point-by-point match replay.
+           Reads a match's timeline (live or archived) without mutating any
+           live game state; entirely a read-only viewer.
+           ═══════════════════════════════════════════════════════════════════ */
+
+        const THEATER_CODE_LABELS = {
+            K: 'Kill',
+            SE: 'Service Error',
+            BE: 'Block Error',
+            E: 'Attack Error',
+            BHE: 'Ball Handling Error',
+            ERR: 'Error (unspecified)',
+            PT: 'Point (stats off)',
+            OPP: 'Opponent point (stats off)',
+            SKIP: 'Not tagged'
+        };
+
+        let theaterState = null;
+
+        function buildTheaterStateFromLive() {
+            const homeTeamName = document.getElementById('home-name').textContent;
+            const visitorTeamName = document.getElementById('visitor-name').textContent;
+
+            const setsMeta = state.setHistory.map(s => ({
+                setNumber: s.setNumber, homeScore: s.homeScore, visitorScore: s.visitorScore, final: true
+            }));
+            const curSetNumber = state.setHistory.length + 1;
+            const curSetHasPoints = state.matchTimeline.some(e => e.type === 'point' && e.setNumber === curSetNumber);
+            if (curSetHasPoints || state.home.score > 0 || state.visitor.score > 0) {
+                setsMeta.push({ setNumber: curSetNumber, homeScore: state.home.score, visitorScore: state.visitor.score, final: false });
+            }
+
+            return {
+                homeTeamName, visitorTeamName,
+                matchFormat: state.matchFormat,
+                timeline: state.matchTimeline,
+                setsMeta
+            };
+        }
+
+        function buildTheaterStateFromArchive(match) {
+            return {
+                homeTeamName: match.homeTeamName,
+                visitorTeamName: match.visitorTeamName,
+                matchFormat: match.matchFormat || 3,
+                timeline: match.timeline || [],
+                setsMeta: match.sets.map(s => ({
+                    setNumber: s.setNumber, homeScore: s.homeScore, visitorScore: s.visitorScore, final: !s.inProgress
+                }))
+            };
+        }
+
+        function openTheaterModeLive() {
+            const built = buildTheaterStateFromLive();
+            if (built.setsMeta.length === 0) {
+                alert('No match data to review yet — score at least one point first.');
+                return;
+            }
+            theaterState = { ...built, currentSetIdx: built.setsMeta.length - 1, currentSetEvents: [], currentPointIdx: -1 };
+            document.getElementById('theater-mode-modal').classList.add('active');
+            document.getElementById('theater-match-title').textContent = `${theaterState.homeTeamName} vs ${theaterState.visitorTeamName} — Live`;
+            selectTheaterSet(theaterState.currentSetIdx);
+        }
+
+        function openTheaterModeArchived(matchId) {
+            const match = state.matchArchive.find(m => m.id === matchId);
+            if (!match) return;
+            const built = buildTheaterStateFromArchive(match);
+            if (built.setsMeta.length === 0) {
+                alert('This archived match has no set data to review.');
+                return;
+            }
+            theaterState = { ...built, currentSetIdx: 0, currentSetEvents: [], currentPointIdx: -1 };
+            document.getElementById('theater-mode-modal').classList.add('active');
+            document.getElementById('theater-match-title').textContent = `${theaterState.homeTeamName} vs ${theaterState.visitorTeamName} — ${new Date(match.date).toLocaleDateString()}`;
+            selectTheaterSet(0);
+        }
+
+        function closeTheaterMode() {
+            stopTheaterAutoplay();
+            document.getElementById('theater-mode-modal').classList.remove('active');
+            theaterState = null;
+        }
+
+        function renderTheaterSetTabs() {
+            const container = document.getElementById('theater-set-tabs');
+            container.innerHTML = theaterState.setsMeta.map((s, idx) => `
+                <button class="tab-btn ${idx === theaterState.currentSetIdx ? 'active' : ''}" onclick="manualSelectTheaterSet(${idx})">
+                    Set ${s.setNumber} ${s.final ? `(${s.homeScore}–${s.visitorScore})` : '(in progress)'}
+                </button>
+            `).join('');
+        }
+
+        function selectTheaterSet(idx) {
+            if (!theaterState) return;
+            theaterState.currentSetIdx = idx;
+            const setNumber = theaterState.setsMeta[idx].setNumber;
+            theaterState.currentSetEvents = theaterState.timeline.filter(e => e.setNumber === setNumber);
+            const pointEvents = theaterState.currentSetEvents.filter(e => e.type === 'point');
+            theaterState.currentPointIdx = pointEvents.length > 0 ? pointEvents.length - 1 : -1;
+
+            renderTheaterSetTabs();
+            renderTheaterTimeline();
+            renderTheaterDetail();
+            renderTheaterMoveList();
+        }
+
+        function renderTheaterTimeline() {
+            const barsContainer = document.getElementById('theater-bars');
+            const pointEvents = theaterState.currentSetEvents.filter(e => e.type === 'point');
+
+            if (pointEvents.length === 0) {
+                barsContainer.innerHTML = '<p style="color: var(--text-secondary); padding: 10px;">No points were logged for this set.</p>';
+            } else {
+                barsContainer.innerHTML = pointEvents.map((e, idx) => {
+                    const isHome = e.scoringTeam === 'home';
+                    const color = isHome ? 'var(--team1-color)' : 'var(--team2-color)';
+                    const selected = idx === theaterState.currentPointIdx;
+                    return `
+                        <div onclick="manualJumpToPoint(${idx})"
+                             title="${THEATER_CODE_LABELS[e.code] || e.code || 'Point'}${e.playerName ? ' — ' + e.playerName : ''}"
+                             style="display:flex; flex-direction:column; align-items:center; cursor:pointer; min-width:30px; flex-shrink:0;">
+                            <div style="width:24px; height:52px; background:${color}; border-radius:4px; opacity:${selected ? '1' : '0.75'}; border:${selected ? '3px solid #fbbf24' : '1px solid rgba(0,0,0,0.15)'}; transition: opacity 0.15s;"></div>
+                            <div style="font-size:9px; margin-top:4px; font-weight:700; color:var(--text-secondary); white-space:nowrap;">${e.code || ''}</div>
+                        </div>
+                    `;
+                }).join('');
+            }
+
+            const subEvents = theaterState.currentSetEvents.filter(e => e.type === 'substitution');
+            const subsContainer = document.getElementById('theater-subs-list');
+            if (subEvents.length === 0) {
+                subsContainer.innerHTML = '';
+            } else {
+                subsContainer.innerHTML = '<div style="font-size:12px; font-weight:600; margin-bottom:4px;">🔁 Substitutions this set</div>' +
+                    subEvents.map(s => `
+                        <div style="font-size:12px; color: var(--text-secondary);">
+                            ${s.team === 'home' ? theaterState.homeTeamName : theaterState.visitorTeamName}:
+                            ${s.playerOutJersey ? '#' + s.playerOutJersey + ' ' : ''}${s.playerOutName} →
+                            ${s.playerInJersey ? '#' + s.playerInJersey + ' ' : ''}${s.playerInName}
+                            <span style="opacity:0.7;">(at ${s.homeScore}–${s.visitorScore})</span>
+                        </div>
+                    `).join('');
+            }
+        }
+
+        function describeTheaterPoint(e) {
+            const scoringName = e.scoringTeam === 'home' ? theaterState.homeTeamName : theaterState.visitorTeamName;
+            const label = THEATER_CODE_LABELS[e.code] || e.code || 'Point';
+            const isOpponentError = ['SE', 'BE', 'E', 'BHE', 'ERR'].includes(e.code);
+
+            if (isOpponentError) {
+                const errTeamName = e.scoringTeam === 'home' ? theaterState.visitorTeamName : theaterState.homeTeamName;
+                const who = e.playerName ? ` by ${e.playerJersey ? '#' + e.playerJersey + ' ' : ''}${e.playerName}` : '';
+                return `${scoringName} point — ${errTeamName} error: ${label}${who}`;
+            }
+            if (e.code === 'K') {
+                const who = e.playerName ? ` by ${e.playerJersey ? '#' + e.playerJersey + ' ' : ''}${e.playerName}` : '';
+                const assist = e.assistName ? ` (assist: ${e.assistName})` : '';
+                return `${scoringName} point — Kill${who}${assist}`;
+            }
+            return `${scoringName} point (${label})`;
+        }
+
+        function renderTheaterDetail() {
+            const pointEvents = theaterState.currentSetEvents.filter(e => e.type === 'point');
+            const idx = theaterState.currentPointIdx;
+            const scoreDisplay = document.getElementById('theater-score-display');
+            const detail = document.getElementById('theater-detail');
+            const positionsDisplay = document.getElementById('theater-positions-display');
+
+            if (idx < 0 || !pointEvents[idx]) {
+                scoreDisplay.innerHTML = '0 – 0';
+                detail.innerHTML = 'No points to show for this set yet.';
+                positionsDisplay.innerHTML = '';
+                return;
+            }
+
+            const e = pointEvents[idx];
+            scoreDisplay.innerHTML = `<span style="color:var(--team1-color);">${e.homeScore}</span> – <span style="color:var(--team2-color);">${e.visitorScore}</span>`;
+            detail.innerHTML = `
+                <div style="font-size:13px; color: var(--text-secondary); margin-bottom:4px;">Set ${e.setNumber} · Point ${idx + 1} of ${pointEvents.length}</div>
+                <div style="font-size:16px; font-weight:600;">${describeTheaterPoint(e)}</div>
+                <div style="font-size:12px; color: var(--text-secondary); margin-top:4px;">Serving before this rally: ${e.servingTeamBefore === 'home' ? theaterState.homeTeamName : theaterState.visitorTeamName}</div>
+            `;
+
+            const courtBlock = (positions, label, color) => `
+                <div style="flex:1; min-width:180px;">
+                    <div style="font-weight:600; font-size:12px; margin-bottom:6px; color:${color};">${label} — on court</div>
+                    <div style="display:grid; grid-template-columns:repeat(3,1fr); gap:4px;">
+                        ${(positions || []).map(p => `
+                            <div style="border:1px solid var(--border-color); border-radius:4px; padding:6px; text-align:center; font-size:11px; background: var(--card-bg);">
+                                ${p ? `${p.jersey ? '#' + p.jersey + ' ' : ''}${p.name}` : '<span style="color:var(--text-secondary);">—</span>'}
+                            </div>
+                        `).join('')}
+                    </div>
+                </div>
+            `;
+
+            positionsDisplay.innerHTML = `
+                <div style="display:flex; gap:15px; flex-wrap:wrap;">
+                    ${courtBlock(e.homePositions, theaterState.homeTeamName, 'var(--team1-color)')}
+                    ${courtBlock(e.visitorPositions, theaterState.visitorTeamName, 'var(--team2-color)')}
+                </div>
+            `;
+        }
+
+        function jumpToPoint(idx) {
+            const pointEvents = theaterState.currentSetEvents.filter(e => e.type === 'point');
+            if (idx < 0 || idx >= pointEvents.length) return;
+            theaterState.currentPointIdx = idx;
+            renderTheaterTimeline();
+            renderTheaterDetail();
+            renderTheaterMoveList();
+        }
+
+        function stepTheaterPoint(delta) {
+            if (!theaterState) return;
+            const pointEvents = theaterState.currentSetEvents.filter(e => e.type === 'point');
+            const newIdx = theaterState.currentPointIdx + delta;
+
+            if (newIdx < 0) {
+                if (theaterState.currentSetIdx > 0) {
+                    selectTheaterSet(theaterState.currentSetIdx - 1);
+                    const prevPoints = theaterState.currentSetEvents.filter(e => e.type === 'point');
+                    if (prevPoints.length > 0) jumpToPoint(prevPoints.length - 1);
+                }
+                return;
+            }
+            if (newIdx >= pointEvents.length) {
+                if (theaterState.currentSetIdx < theaterState.setsMeta.length - 1) {
+                    selectTheaterSet(theaterState.currentSetIdx + 1);
+                    const nextPoints = theaterState.currentSetEvents.filter(e => e.type === 'point');
+                    if (nextPoints.length > 0) jumpToPoint(0);
+                }
+                return;
+            }
+            jumpToPoint(newIdx);
+        }
+
+        function renderTheaterMoveList() {
+            const container = document.getElementById('theater-move-list');
+            if (!container || !theaterState) return;
+            const pts = theaterState.currentSetEvents.filter(e => e.type === 'point');
+
+            if (pts.length === 0) {
+                container.innerHTML = '<p style="color: var(--text-secondary); font-size: 12px; padding: 10px;">No points logged for this set.</p>';
+                return;
+            }
+
+            container.innerHTML = pts.map((e, idx) => {
+                const selected = idx === theaterState.currentPointIdx;
+                const teamName = e.scoringTeam === 'home' ? theaterState.homeTeamName : theaterState.visitorTeamName;
+                const color = e.scoringTeam === 'home' ? 'var(--team1-color)' : 'var(--team2-color)';
+                return `
+                    <div id="theater-move-row-${idx}" onclick="manualJumpToPoint(${idx})"
+                         style="display:flex; justify-content:space-between; align-items:center; gap:8px; padding:8px 10px; cursor:pointer; border-bottom:1px solid var(--border-color); background:${selected ? 'var(--button-bg)' : 'transparent'}; border-left:3px solid ${selected ? '#fbbf24' : 'transparent'};">
+                        <span style="font-size:12px;"><strong style="color:${color};">${idx + 1}.</strong> ${teamName} — ${THEATER_CODE_LABELS[e.code] || e.code || 'Point'}${e.playerName ? ' (' + (e.playerJersey ? '#' + e.playerJersey + ' ' : '') + e.playerName + ')' : ''}</span>
+                        <span style="font-size:12px; font-weight:600; color: var(--text-secondary); white-space:nowrap;">${e.homeScore}–${e.visitorScore}</span>
+                    </div>
+                `;
+            }).join('');
+
+            const selectedRow = document.getElementById(`theater-move-row-${theaterState.currentPointIdx}`);
+            if (selectedRow && selectedRow.scrollIntoView) {
+                selectedRow.scrollIntoView({ block: 'nearest' });
+            }
+        }
+
+        /* — Manual navigation wrappers: stop any running autoplay before acting,
+           so autoplay never fights a coach who's actively steering the review. */
+
+        function manualStepTheaterPoint(delta) {
+            stopTheaterAutoplay();
+            stepTheaterPoint(delta);
+        }
+
+        function manualJumpToPoint(idx) {
+            stopTheaterAutoplay();
+            jumpToPoint(idx);
+        }
+
+        function manualSelectTheaterSet(idx) {
+            stopTheaterAutoplay();
+            selectTheaterSet(idx);
+        }
+
+        function jumpToStart() {
+            if (!theaterState) return;
+            selectTheaterSet(0);
+            const pts = theaterState.currentSetEvents.filter(e => e.type === 'point');
+            if (pts.length > 0) jumpToPoint(0);
+        }
+
+        function jumpToEnd() {
+            if (!theaterState) return;
+            const lastIdx = theaterState.setsMeta.length - 1;
+            selectTheaterSet(lastIdx);
+            const pts = theaterState.currentSetEvents.filter(e => e.type === 'point');
+            if (pts.length > 0) jumpToPoint(pts.length - 1);
+        }
+
+        let theaterAutoplayTimer = null;
+
+        function isTheaterAtLastPoint() {
+            if (!theaterState) return true;
+            if (theaterState.currentSetIdx !== theaterState.setsMeta.length - 1) return false;
+            const pts = theaterState.currentSetEvents.filter(e => e.type === 'point');
+            return theaterState.currentPointIdx >= pts.length - 1;
+        }
+
+        function stopTheaterAutoplay() {
+            if (theaterAutoplayTimer) {
+                clearInterval(theaterAutoplayTimer);
+                theaterAutoplayTimer = null;
+            }
+            const btn = document.getElementById('theater-play-btn');
+            if (btn) btn.textContent = '▶️ Play';
+        }
+
+        function toggleTheaterAutoplay() {
+            if (!theaterState) return;
+            const btn = document.getElementById('theater-play-btn');
+
+            if (theaterAutoplayTimer) {
+                stopTheaterAutoplay();
+                return;
+            }
+
+            if (isTheaterAtLastPoint()) {
+                jumpToStart();
+            }
+
+            btn.textContent = '⏸ Pause';
+            theaterAutoplayTimer = setInterval(() => {
+                if (!theaterState || isTheaterAtLastPoint()) {
+                    stopTheaterAutoplay();
+                    return;
+                }
+                stepTheaterPoint(1);
+            }, 1100);
         }
 
         function openColorPicker(team) {
