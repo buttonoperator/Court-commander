@@ -1007,6 +1007,12 @@
                             <button class="btn-undo" onclick="undo('visitor')">↶</button>
                         </div>
                     </div>
+                    <div style="display: flex; align-items: center; gap: 8px; padding: 0 0 12px; flex-wrap: wrap;">
+                        <label for="visitor-team-selector" style="font-size: 12px; color: var(--text-secondary); font-weight: 600; white-space: nowrap;">Opponent:</label>
+                        <select id="visitor-team-selector" onchange="selectVisitorTeamFromDropdown(this.value)" style="flex: 1; min-width: 160px; padding: 6px 10px; border-radius: 6px; border: 1px solid var(--border-color); background: var(--button-bg); color: var(--text-primary); font-size: 13px;">
+                            <option value="">— Select saved team —</option>
+                        </select>
+                    </div>
                     <div class="court" id="visitor-court"></div>
                 </div>
 
@@ -1165,25 +1171,21 @@
             <button class="modal-close" onclick="closeRoster()">×</button>
             <div class="modal-header" id="roster-modal-header">Manage Roster</div>
 
-            <div id="visitor-team-bank-section" style="display: none; margin-bottom: 20px; padding: 15px; background: var(--button-bg); border-radius: 10px; border: 1px solid var(--border-color);">
-                <h3 style="margin-bottom: 10px; font-size: 15px;">Visitor Team Bank</h3>
+            <div id="visitor-team-bank-section" style="display: none; margin-bottom: 15px; padding: 15px; background: var(--button-bg); border-radius: 10px; border: 1px solid var(--border-color);">
+                <h3 style="margin-bottom: 10px; font-size: 15px;">Saved Opponents</h3>
                 <div id="visitor-team-bank-list" style="margin-bottom: 10px;"></div>
-                <button style="background: #10b981; width: 100%;" onclick="saveVisitorTeamToBank()">💾 Save Current Roster to Team Bank</button>
-                <div style="display: flex; gap: 8px; margin-top: 8px;">
-                    <button style="background: #3b82f6; flex: 1;" onclick="exportTeamBank()">⬇️ Export Bank (.json)</button>
-                    <button style="background: #f59e0b; flex: 1;" onclick="document.getElementById('team-bank-import-input').click()">⬆️ Import Team(s)</button>
-                </div>
-                <input type="file" id="team-bank-import-input" accept="application/json" style="display: none;" onchange="importTeamBankFile(this)">
-                <p style="color: var(--text-secondary); font-size: 11px; margin-top: 6px; font-style: italic;">
-                    Build a roster below, save it here, then reload it any time this team visits again. Export the whole bank to share every saved opponent with another coach's device in one file — no code or repository changes needed.
-                </p>
+                <button style="background: #10b981; width: 100%;" onclick="saveVisitorTeamToBank()">💾 Save Roster Below as a New Opponent</button>
             </div>
 
-            <div style="display: flex; gap: 8px; margin-bottom: 15px;">
-                <button style="background: #3b82f6; flex: 1; font-size: 13px;" onclick="exportRoster(state.currentTeam)">⬇️ Export This Roster (.json)</button>
-                <button style="background: #f59e0b; flex: 1; font-size: 13px;" onclick="document.getElementById('roster-import-input').click()">⬆️ Import Roster (.json)</button>
+            <div style="margin-bottom: 20px; padding: 15px; background: var(--button-bg); border-radius: 10px; border: 1px solid var(--border-color);">
+                <h3 style="margin-bottom: 8px; font-size: 15px;">Backup &amp; Sharing</h3>
+                <div style="display: flex; gap: 8px;">
+                    <button style="background: #3b82f6; flex: 1; font-size: 13px;" onclick="exportRosterOrBank()">⬇️ Export</button>
+                    <button style="background: #f59e0b; flex: 1; font-size: 13px;" onclick="document.getElementById('roster-import-input').click()">⬆️ Import</button>
+                </div>
+                <input type="file" id="roster-import-input" accept="application/json" style="display: none;" onchange="importRosterOrTeams(this)">
+                <p id="roster-file-tools-hint" style="color: var(--text-secondary); font-size: 11px; margin-top: 8px; line-height: 1.5;"></p>
             </div>
-            <input type="file" id="roster-import-input" accept="application/json" style="display: none;" onchange="importRosterFile(this)">
 
             <div class="roster-form">
                 <div class="form-group">
@@ -1750,6 +1752,7 @@
             updateVisitorDisplay();
             updateWhiteboardDisplay();
             updateRotationList('home');
+            refreshVisitorTeamSelector();
 
             // Autosave: periodic + on tab hide/close (covers iPad Safari,
             // where 'beforeunload' is unreliable)
@@ -1963,14 +1966,21 @@
                 team === 'visitor' ? 'Manage Visitor Roster' : 'Manage Roster';
 
             const bankSection = document.getElementById('visitor-team-bank-section');
+            const hint = document.getElementById('roster-file-tools-hint');
             if (team === 'visitor') {
                 bankSection.style.display = 'block';
                 updateTeamBankList();
+                hint.innerHTML = 'Export sends your entire Saved Opponents list as one file — the easiest way to hand your whole opponent library to another coach\'s device. Import reads that file back in (or a single roster file) and adds it to Saved Opponents; it never touches what\'s live on court. Just want to share the roster below on its own, without saving it first? <span onclick="exportSingleVisitorRosterOnly()" style="color: #3b82f6; text-decoration: underline; cursor: pointer;">Export just this roster</span>.';
             } else {
                 bankSection.style.display = 'none';
+                hint.innerHTML = 'Export saves the roster below to a file. Import replaces it — handy for moving this roster to another device or another coach\'s browser without redeploying the app.';
             }
 
             updateRosterList();
+        }
+
+        function exportSingleVisitorRosterOnly() {
+            exportRoster('visitor');
         }
 
         function closeRoster() {
@@ -2079,12 +2089,12 @@
 
         function saveVisitorTeamToBank() {
             if (state.visitor.roster.length === 0) {
-                alert('Add players to the visitor roster below before saving it to the team bank.');
+                alert('Add players to the visitor roster below before saving it to Saved Opponents.');
                 return;
             }
 
             const defaultName = document.getElementById('visitor-name').textContent;
-            const name = prompt('Save this roster to the team bank as:', defaultName || 'New Team');
+            const name = prompt('Save this roster to Saved Opponents as:', defaultName || 'New Team');
             if (!name || !name.trim()) return;
             const trimmedName = name.trim();
 
@@ -2103,7 +2113,7 @@
             );
 
             if (existingIdx >= 0) {
-                if (!confirm(`"${trimmedName}" already exists in the team bank. Overwrite it?`)) return;
+                if (!confirm(`"${trimmedName}" already exists in Saved Opponents. Overwrite it?`)) return;
                 state.visitorTeamBank[existingIdx] = {
                     ...state.visitorTeamBank[existingIdx],
                     roster: rosterCopy,
@@ -2128,8 +2138,14 @@
 
             if (state.visitor.roster.length > 0 &&
                 !confirm(`Load "${team.name}"? This replaces the current visitor roster (${state.visitor.roster.length} players) and clears the visitor court/bench.`)) {
+                refreshVisitorTeamSelector();
                 return;
             }
+
+            // This function only ever operates on the visitor team, and can now be
+            // triggered from the main-screen dropdown without the roster modal
+            // being open — make sure downstream renders target the right team.
+            state.currentTeam = 'visitor';
 
             state.visitor.roster = team.roster.map((p, idx) => ({
                 id: Date.now() + idx,
@@ -2157,19 +2173,22 @@
             updateCourt('visitor');
             updateStatsTable();
             updateVisitorDisplay();
+            refreshVisitorTeamSelector();
             saveToLocalStorage();
         }
 
         function deleteVisitorTeamFromBank(teamId) {
             const team = state.visitorTeamBank.find(t => t.id === teamId);
             if (!team) return;
-            if (!confirm(`Delete "${team.name}" from the team bank? This cannot be undone.`)) return;
+            if (!confirm(`Delete "${team.name}" from Saved Opponents? This cannot be undone.`)) return;
             state.visitorTeamBank = state.visitorTeamBank.filter(t => t.id !== teamId);
             updateTeamBankList();
             saveToLocalStorage();
         }
 
         function updateTeamBankList() {
+            refreshVisitorTeamSelector();
+
             const container = document.getElementById('visitor-team-bank-list');
             if (!container) return;
 
@@ -2187,6 +2206,27 @@
                     </div>
                 </div>
             `).join('');
+        }
+
+        function refreshVisitorTeamSelector() {
+            const selector = document.getElementById('visitor-team-selector');
+            if (!selector) return;
+            const currentName = document.getElementById('visitor-name') ? document.getElementById('visitor-name').textContent : '';
+
+            selector.innerHTML = ['<option value="">— Select saved team —</option>']
+                .concat(state.visitorTeamBank.map(t =>
+                    `<option value="${t.id}">${t.name} (${t.roster.length})</option>`
+                )).join('');
+
+            // If the roster currently loaded on court matches a bank entry by name,
+            // reflect that in the dropdown instead of always showing the placeholder.
+            const match = state.visitorTeamBank.find(t => t.name === currentName);
+            selector.value = match ? String(match.id) : '';
+        }
+
+        function selectVisitorTeamFromDropdown(teamId) {
+            if (!teamId) return;
+            loadVisitorTeamFromBank(Number(teamId));
         }
 
         /* ═══════════════════════════════════════════════════════════════════
@@ -2239,76 +2279,66 @@
             }, `roster-${slugify(teamName)}.json`);
         }
 
-        function importRosterFile(input) {
-            const file = input.files && input.files[0];
-            if (!file) return;
+        // Single entry point for the "Export" button in Manage Roster. Home has
+        // no team bank, so it always exports the one roster; Visitor's primary
+        // export is the whole saved-opponents bank (the more useful default —
+        // exporting just the on-court roster is still available as a secondary
+        // link in the hint text below the buttons).
+        function exportRosterOrBank() {
+            if (state.currentTeam === 'visitor') {
+                exportTeamBank();
+            } else {
+                exportRoster('home');
+            }
+        }
 
-            const reader = new FileReader();
-            reader.onload = (e) => {
-                let payload;
-                try {
-                    payload = JSON.parse(e.target.result);
-                } catch (err) {
-                    alert('That file is not valid JSON.');
-                    input.value = '';
+        function handleSingleRosterImportPayload(payload) {
+            const team = state.currentTeam;
+
+            if (team === 'home') {
+                if (!confirm(`Replace the current home roster (${state.home.roster.length} players) with "${payload.teamName}" (${payload.roster.length} players)?`)) {
                     return;
                 }
-                if (!payload || payload.type !== 'court-commander-roster' || !Array.isArray(payload.roster)) {
-                    alert('That file doesn\'t look like a Court Commander roster export.');
-                    input.value = '';
-                    return;
-                }
-
-                const team = state.currentTeam;
-
-                if (team === 'home') {
-                    if (!confirm(`Replace the current home roster (${state.home.roster.length} players) with "${payload.teamName}" (${payload.roster.length} players)?`)) {
-                        input.value = '';
-                        return;
-                    }
-                    state.home.roster = payload.roster.map((p, idx) => ({
-                        id: Date.now() + idx,
-                        name: p.name,
-                        jersey: p.jersey || '',
-                        position: p.position || '',
-                        grade: p.grade || '',
-                        libero: !!p.libero,
-                        stats: blankStatLine()
-                    }));
-                    updateRosterList();
-                    updateBench('home');
-                    updateStatsTable();
+                state.home.roster = payload.roster.map((p, idx) => ({
+                    id: Date.now() + idx,
+                    name: p.name,
+                    jersey: p.jersey || '',
+                    position: p.position || '',
+                    grade: p.grade || '',
+                    libero: !!p.libero,
+                    stats: blankStatLine()
+                }));
+                updateRosterList();
+                updateBench('home');
+                updateStatsTable();
+            } else {
+                // Visitor imports go into the Team Bank rather than straight onto
+                // the court, so an import never silently disrupts a live game.
+                const name = prompt('Save this imported roster to Saved Opponents as:', payload.teamName || 'Imported Team');
+                if (!name || !name.trim()) return;
+                const trimmedName = name.trim();
+                const existingIdx = state.visitorTeamBank.findIndex(t => t.name.toLowerCase() === trimmedName.toLowerCase());
+                const entry = {
+                    id: existingIdx >= 0 ? state.visitorTeamBank[existingIdx].id : Date.now(),
+                    name: trimmedName,
+                    savedAt: new Date().toISOString(),
+                    roster: cleanRosterForExport(payload.roster)
+                };
+                if (existingIdx >= 0) {
+                    if (!confirm(`"${trimmedName}" already exists in Saved Opponents. Overwrite it?`)) return;
+                    state.visitorTeamBank[existingIdx] = entry;
                 } else {
-                    // Visitor imports go into the Team Bank rather than straight onto
-                    // the court, so an import never silently disrupts a live game.
-                    const name = prompt('Save this imported roster to the Team Bank as:', payload.teamName || 'Imported Team');
-                    if (!name || !name.trim()) { input.value = ''; return; }
-                    const trimmedName = name.trim();
-                    const existingIdx = state.visitorTeamBank.findIndex(t => t.name.toLowerCase() === trimmedName.toLowerCase());
-                    const entry = {
-                        id: existingIdx >= 0 ? state.visitorTeamBank[existingIdx].id : Date.now(),
-                        name: trimmedName,
-                        savedAt: new Date().toISOString(),
-                        roster: cleanRosterForExport(payload.roster)
-                    };
-                    if (existingIdx >= 0) {
-                        if (!confirm(`"${trimmedName}" already exists in the team bank. Overwrite it?`)) { input.value = ''; return; }
-                        state.visitorTeamBank[existingIdx] = entry;
-                    } else {
-                        state.visitorTeamBank.push(entry);
-                    }
-                    updateTeamBankList();
+                    state.visitorTeamBank.push(entry);
                 }
+                updateTeamBankList();
+            }
 
-                saveToLocalStorage();
-                input.value = '';
-            };
-            reader.readAsText(file);
+            saveToLocalStorage();
         }
 
         function exportTeamBank() {
             if (state.visitorTeamBank.length === 0) {
-                alert('The team bank is empty — nothing to export.');
+                alert('Saved Opponents is empty — nothing to export.');
                 return;
             }
             downloadJSON({
@@ -2322,7 +2352,43 @@
             }, 'court-commander-team-bank.json');
         }
 
-        function importTeamBankFile(input) {
+        function handleTeamBankImportPayload(payload) {
+            let added = 0, overwritten = 0, skipped = 0;
+            payload.teams.forEach(team => {
+                if (!team || !team.name || !Array.isArray(team.roster)) { skipped++; return; }
+                const existingIdx = state.visitorTeamBank.findIndex(t => t.name.toLowerCase() === team.name.toLowerCase());
+                if (existingIdx >= 0) {
+                    if (confirm(`"${team.name}" already exists in Saved Opponents. Overwrite it? (Cancel = skip this one)`)) {
+                        state.visitorTeamBank[existingIdx] = {
+                            ...state.visitorTeamBank[existingIdx],
+                            roster: cleanRosterForExport(team.roster),
+                            savedAt: new Date().toISOString()
+                        };
+                        overwritten++;
+                    } else {
+                        skipped++;
+                    }
+                } else {
+                    state.visitorTeamBank.push({
+                        id: Date.now() + Math.floor(Math.random() * 100000),
+                        name: team.name,
+                        savedAt: new Date().toISOString(),
+                        roster: cleanRosterForExport(team.roster)
+                    });
+                    added++;
+                }
+            });
+
+            updateTeamBankList();
+            saveToLocalStorage();
+            alert(`Imported: ${added} new team(s), ${overwritten} overwritten, ${skipped} skipped.`);
+        }
+
+        // Single "Import" entry point — reads the file once and auto-detects
+        // whether it's a single-roster export or a whole team-bank export, so
+        // there's only one button to reach for regardless of which kind of
+        // file someone hands you.
+        function importRosterOrTeams(input) {
             const file = input.files && input.files[0];
             if (!file) return;
 
@@ -2336,41 +2402,20 @@
                     input.value = '';
                     return;
                 }
-                if (!payload || payload.type !== 'court-commander-team-bank' || !Array.isArray(payload.teams)) {
-                    alert('That file doesn\'t look like a Court Commander team bank export.');
-                    input.value = '';
-                    return;
+
+                if (payload && payload.type === 'court-commander-team-bank' && Array.isArray(payload.teams)) {
+                    if (state.currentTeam !== 'visitor') {
+                        alert('This file has multiple saved teams, which only apply to the Visitor roster. Open "Roster" on the Visitor card to import it.');
+                        input.value = '';
+                        return;
+                    }
+                    handleTeamBankImportPayload(payload);
+                } else if (payload && payload.type === 'court-commander-roster' && Array.isArray(payload.roster)) {
+                    handleSingleRosterImportPayload(payload);
+                } else {
+                    alert('That file doesn\'t look like a Court Commander roster or team export.');
                 }
 
-                let added = 0, overwritten = 0, skipped = 0;
-                payload.teams.forEach(team => {
-                    if (!team || !team.name || !Array.isArray(team.roster)) { skipped++; return; }
-                    const existingIdx = state.visitorTeamBank.findIndex(t => t.name.toLowerCase() === team.name.toLowerCase());
-                    if (existingIdx >= 0) {
-                        if (confirm(`"${team.name}" already exists in your team bank. Overwrite it? (Cancel = skip this one)`)) {
-                            state.visitorTeamBank[existingIdx] = {
-                                ...state.visitorTeamBank[existingIdx],
-                                roster: cleanRosterForExport(team.roster),
-                                savedAt: new Date().toISOString()
-                            };
-                            overwritten++;
-                        } else {
-                            skipped++;
-                        }
-                    } else {
-                        state.visitorTeamBank.push({
-                            id: Date.now() + Math.floor(Math.random() * 100000),
-                            name: team.name,
-                            savedAt: new Date().toISOString(),
-                            roster: cleanRosterForExport(team.roster)
-                        });
-                        added++;
-                    }
-                });
-
-                updateTeamBankList();
-                saveToLocalStorage();
-                alert(`Imported: ${added} new team(s), ${overwritten} overwritten, ${skipped} skipped.`);
                 input.value = '';
             };
             reader.readAsText(file);
