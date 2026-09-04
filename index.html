@@ -305,7 +305,7 @@
         .position {
             aspect-ratio: 4 / 5;
             border: 2px solid var(--border-color);
-            border-radius: 6px;
+            border-radius: 8px;
             display: flex;
             flex-direction: column;
             align-items: center;
@@ -383,10 +383,13 @@
             text-align: center;
             color: var(--text-secondary);
             margin-bottom: 1px;
-            line-height: 1.15;
+            line-height: 1.2;
             max-width: 100%;
-            word-break: break-word;
-            hyphens: auto;
+            overflow-wrap: break-word;
+            display: -webkit-box;
+            -webkit-line-clamp: 2;
+            -webkit-box-orient: vertical;
+            overflow: hidden;
             position: relative;
         }
 
@@ -397,12 +400,20 @@
         }
 
         /* 10-foot / attack line: a dashed divider between the front row
-           (nearest the net) and back row of each team's court, drawn as a
-           border on the front-row boxes rather than a separate element so it
-           works with the existing position-box renderer untouched. */
-        #visitor-court .position:nth-child(-n+3),
-        #home-court .position:nth-child(-n+3) {
-            border-bottom: 3px dashed var(--text-secondary);
+           (nearest the net) and back row, drawn as its own element centered
+           in the grid gap between the two rows — not baked into any box's
+           border, so every box's own border stays a consistent color.
+           (.uc-court-diagram .court already sets position:relative below.) */
+        #visitor-court::after,
+        #home-court::after {
+            content: '';
+            position: absolute;
+            left: 2px;
+            right: 2px;
+            top: 50%;
+            border-top: 3px dashed var(--text-secondary);
+            transform: translateY(-50%);
+            pointer-events: none;
         }
 
         .serving-indicator {
@@ -467,19 +478,14 @@
         /* Marker toolbar: two presentation modes.
            - FLOATING (default markup): a draggable vertical panel, used only
              inside the Rotation Strategy planner modal.
-           - DOCKED: relocated into a dock target and laid out as a static
-             bar so it never covers court content the way the floating panel
-             did on mobile. On desktop it docks beneath the whiteboard
-             (#marker-dock); on narrow/mobile viewports it docks at the
-             bottom of the bench rail instead (#marker-dock-mobile), matching
-             that column's width. */
+           - DOCKED: relocated into #marker-dock beneath the whiteboard on the
+             court view, laid out as a static horizontal bar so it never
+             covers court content the way the floating panel did on mobile.
+             The whiteboard itself relocates on mobile (see
+             updateWhiteboardPlacement) to sit right after the court, which
+             carries this dock along with it automatically. */
         #marker-dock {
             margin-top: 12px;
-        }
-
-        #marker-dock-mobile {
-            width: 100%;
-            border-top: 2px solid var(--border-color);
         }
 
         #marker-tab.marker-docked {
@@ -1500,7 +1506,6 @@
                                 <button class="btn-save" onclick="saveRotation('home')">Save</button>
                             </div>
                         </div>
-                        <div id="marker-dock-mobile"></div>
                     </div>
 
                     <!-- Right column: the shared court, with a slim team-name
@@ -5208,21 +5213,21 @@
             return !!(modal && modal.classList.contains('active'));
         }
 
-        // Physically move the marker element between its docked home and
-        // floating on the page body, depending on whether the planner is
-        // open. On mobile the dock is at the bottom of the bench rail (same
-        // width as that narrow column); on desktop it's under the
-        // whiteboard, matching that wider sidebar instead. Called whenever
-        // context changes AND on viewport resize, since crossing the mobile
-        // breakpoint should relocate the dock even without a modal opening.
+        // Physically move the marker element between its docked home (under
+        // the whiteboard) and floating on the page body, depending on
+        // whether the planner is open. This docks under the whiteboard on
+        // every viewport width — a bench-rail dock was tried for mobile and
+        // didn't work well in practice (too cramped), so it always docks in
+        // the same spot now; only the whiteboard's own position moves
+        // between mobile and desktop (see updateWhiteboardPlacement below),
+        // which naturally carries the marker along with it.
         function isMobileMarkerViewport() {
             return window.innerWidth < 1024;
         }
 
         function updateMarkerTabPlacement() {
             const tab = document.getElementById('marker-tab');
-            const dockDesktop = document.getElementById('marker-dock');
-            const dockMobile = document.getElementById('marker-dock-mobile');
+            const dock = document.getElementById('marker-dock');
             if (!tab) return;
 
             if (isMarkerTabDraggable()) {
@@ -5233,11 +5238,10 @@
                 }
                 applyMarkerTabPosition();
             } else {
-                // Court view → dock as a bar, target depends on viewport width.
+                // Court view → dock under the whiteboard as a horizontal bar.
                 tab.classList.add('marker-docked');
-                const targetDock = isMobileMarkerViewport() ? dockMobile : dockDesktop;
-                if (targetDock && tab.parentElement !== targetDock) {
-                    targetDock.appendChild(tab);
+                if (dock && tab.parentElement !== dock) {
+                    dock.appendChild(tab);
                 }
             }
             applyMarkerTabDraggableCursor();
