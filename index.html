@@ -1657,6 +1657,7 @@
                                     <select id="visitor-team-selector" onchange="selectTeamFromDropdown('visitor', this.value)" class="uc-team-header-select" title="Select opponent">
                                         <option value="">— Select opponent —</option>
                                     </select>
+                                    <input type="text" id="visitor-generic-name-input" class="uc-team-header-select" style="display: none;" placeholder="Visitor" oninput="updateGenericVisitorName(this.value)" title="Edit the visitor team name">
                                     <h2 class="team-name" id="visitor-name" style="display: none;">Visitor Team</h2>
                                 </div>
 
@@ -1673,25 +1674,31 @@
                                         </div>
 
                                         <div class="uc-score-mid">
-                                            <div class="uc-score-control">
-                                                <button class="btn-score" onclick="addScore('visitor')">+1</button>
-                                            </div>
-                                            <div class="uc-score-block">
-                                                <div class="uc-score-side-label" style="color: var(--team1-color);">AWAY</div>
-                                                <div class="score" id="visitor-score">0</div>
-                                            </div>
-                                            <div class="uc-undo-wrap">
-                                                <div class="uc-sets-combined">
-                                                    <span class="uc-sets-visitor" id="visitor-sets-won">0</span><span class="uc-sets-dash">-</span><span class="uc-sets-home" id="home-sets-won">0</span>
+                                            <div id="uc-score-live-controls" style="display: none; align-items: center; justify-content: center; gap: 6px; width: 100%;">
+                                                <div class="uc-score-control">
+                                                    <button class="btn-score" onclick="addScore('visitor')">+1</button>
                                                 </div>
-                                                <button class="btn-undo uc-shared-undo" onclick="undoLastPoint()" title="Undo the most recent point">↶</button>
+                                                <div class="uc-score-block">
+                                                    <div class="uc-score-side-label" style="color: var(--team1-color);">AWAY</div>
+                                                    <div class="score" id="visitor-score">0</div>
+                                                </div>
+                                                <div class="uc-undo-wrap">
+                                                    <div class="uc-sets-combined">
+                                                        <span class="uc-sets-visitor" id="visitor-sets-won">0</span><span class="uc-sets-dash">-</span><span class="uc-sets-home" id="home-sets-won">0</span>
+                                                    </div>
+                                                    <button class="btn-undo uc-shared-undo" onclick="undoLastPoint()" title="Undo the most recent point">↶</button>
+                                                </div>
+                                                <div class="uc-score-block">
+                                                    <div class="uc-score-side-label" style="color: var(--team2-color);">HOME</div>
+                                                    <div class="score" id="home-score">0</div>
+                                                </div>
+                                                <div class="uc-score-control">
+                                                    <button class="btn-score" onclick="addScore('home')">+1</button>
+                                                </div>
                                             </div>
-                                            <div class="uc-score-block">
-                                                <div class="uc-score-side-label" style="color: var(--team2-color);">HOME</div>
-                                                <div class="score" id="home-score">0</div>
-                                            </div>
-                                            <div class="uc-score-control">
-                                                <button class="btn-score" onclick="addScore('home')">+1</button>
+                                            <div id="uc-game-choice-controls" style="display: flex; align-items: center; justify-content: center; gap: 8px; width: 100%; flex-wrap: wrap; padding: 2px 0;">
+                                                <button style="background: #10b981; font-size: 12px; padding: 7px 12px;" onclick="startGame()">▶️ Start Game</button>
+                                                <button style="background: #8b5cf6; font-size: 12px; padding: 7px 12px;" onclick="simulateRotation()">🔁 Simulate Rotation</button>
                                             </div>
                                         </div>
 
@@ -2878,6 +2885,7 @@
             updateWhiteboardPlacement();
             updateSettingsButtonPlacement();
             updateSetsWonDisplay();
+            updateGameChoiceDisplay();
 
             // Autosave: periodic + on tab hide/close (covers iPad Safari,
             // where 'beforeunload' is unreliable)
@@ -2980,26 +2988,60 @@
             return state[team].positions.map(p => p ? { name: p.name, jersey: p.jersey || '' } : null);
         }
 
-        function addScore(team) {
-            const opponent = team === 'home' ? 'visitor' : 'home';
-
+        // Gates the live scoreboard behind an explicit choice: "Start Game"
+        // reveals scoring controls (after confirming both lineups are full),
+        // "Simulate Rotation" jumps into the rotation planner instead
+        // without committing to a live match — the court stays in setup
+        // mode either way until Start Game is actually clicked.
+        function startGame() {
             const homeFilled = state.home.positions.filter(p => p !== null).length;
             const visitorFilled = state.visitor.positions.filter(p => p !== null).length;
             if (homeFilled < 6 || visitorFilled < 6) {
                 const shortTeams = [];
                 if (homeFilled < 6) shortTeams.push(`Home (${homeFilled}/6)`);
                 if (visitorFilled < 6) shortTeams.push(`Visitor (${visitorFilled}/6)`);
-                alert('Cannot start scoring — all 6 court positions must be filled first.\n\n' + shortTeams.join('\n') + '\n\nClick any empty court slot to assign a player.');
+                alert('Cannot start the game — all 6 court positions must be filled first.\n\n' + shortTeams.join('\n') + '\n\nClick any empty court slot to assign a player.');
                 return;
             }
 
-            const servingTeamBefore = state[opponent].serving ? opponent : team;
-            
-            if (!state.gameStarted) {
-                state.gameStarted = true;
-                updateCourt('home');
-                updateCourt('visitor');
+            state.gameStarted = true;
+            updateCourt('home');
+            updateCourt('visitor');
+            updateVisitorDisplay();
+            updateGameChoiceDisplay();
+            saveToLocalStorage();
+        }
+
+        function simulateRotation() {
+            generateRotationPlan();
+            openRotationPlanner();
+        }
+
+        function updateGameChoiceDisplay() {
+            const liveControls = document.getElementById('uc-score-live-controls');
+            const choiceControls = document.getElementById('uc-game-choice-controls');
+            if (!liveControls || !choiceControls) return;
+
+            if (state.gameStarted) {
+                liveControls.style.display = 'flex';
+                choiceControls.style.display = 'none';
+            } else {
+                liveControls.style.display = 'none';
+                choiceControls.style.display = 'flex';
             }
+        }
+
+        function addScore(team) {
+            if (!state.gameStarted) {
+                // The live scoreboard is hidden until "Start Game" is
+                // clicked, so this shouldn't be reachable through normal UI
+                // — but guard anyway rather than silently auto-starting.
+                alert('Click "Start Game" first to begin scoring.');
+                return;
+            }
+
+            const opponent = team === 'home' ? 'visitor' : 'home';
+            const servingTeamBefore = state[opponent].serving ? opponent : team;
             
             saveHistory(team);
             
@@ -4436,8 +4478,10 @@
                 loadGenericVisitorPositions();
                 state.visitor.roster = [];
                 state.currentVisitorTeamId = null;
-                document.getElementById('visitor-name').textContent = 'Visitors';
-                document.getElementById('visitor-team-name').value = 'Visitors';
+                document.getElementById('visitor-name').textContent = 'Visitor';
+                document.getElementById('visitor-team-name').value = 'Visitor';
+                const nameInput = document.getElementById('visitor-generic-name-input');
+                if (nameInput) nameInput.value = 'Visitor';
             } else {
                 // Clear generic positions if enabling full roster
                 state.visitor.positions = [null, null, null, null, null, null];
@@ -4445,12 +4489,6 @@
             
             updateVisitorDisplay();
             updateStatsTable();
-
-            const selector = document.getElementById('visitor-team-selector');
-            if (selector) {
-                selector.disabled = !state.visitorRosterEnabled;
-                selector.title = state.visitorRosterEnabled ? 'Select opponent' : 'Enable visitor roster in Settings to select an opponent';
-            }
         }
 
         /* ═══════════════════════════════════════════════════════════════════
@@ -4532,12 +4570,34 @@
             }
 
             const selector = document.getElementById('visitor-team-selector');
-            if (selector) {
-                selector.disabled = !state.visitorRosterEnabled;
-                selector.title = state.visitorRosterEnabled ? 'Select opponent' : 'Enable visitor roster in Settings to select an opponent';
+            const nameInput = document.getElementById('visitor-generic-name-input');
+
+            if (state.visitorRosterEnabled) {
+                if (selector) selector.style.display = '';
+                if (nameInput) nameInput.style.display = 'none';
+            } else {
+                // No real opponent while disabled — swap the (now useless)
+                // dropdown for a plain editable name field instead, so the
+                // coach can still customize the generic "Visitor" label
+                // (e.g. "Scrimmage Team") without needing a full roster.
+                // Locked once the game starts, matching how court/position
+                // setup locks down elsewhere once scoring begins.
+                if (selector) selector.style.display = 'none';
+                if (nameInput) {
+                    nameInput.style.display = '';
+                    nameInput.disabled = state.gameStarted;
+                    nameInput.title = state.gameStarted ? 'Locked once the game has started' : 'Edit the visitor team name';
+                }
             }
             
             updateCourt('visitor');
+        }
+
+        function updateGenericVisitorName(value) {
+            const trimmed = value.trim() || 'Visitor';
+            document.getElementById('visitor-name').textContent = trimmed;
+            document.getElementById('visitor-team-name').value = trimmed;
+            saveToLocalStorage();
         }
 
         function toggleWhiteboard() {
@@ -4658,6 +4718,7 @@
             updateCourt('home');
             updateCourt('visitor');
             updateStatsTable();
+            updateGameChoiceDisplay();
             
             alert('✅ All scores and stats have been reset!');
         }
@@ -6212,12 +6273,12 @@
                     if (isSub) {
                         boxStyleParts.push('background: rgba(16, 185, 129, 0.25); border-color: #10b981; border-width: 2px;');
                     } else if (isP1) {
-                        boxStyleParts.push('background: rgba(209, 213, 219, 0.18); border-color: #d1d5db;');
+                        boxStyleParts.push('background: color-mix(in srgb, var(--team1-color) 18%, transparent); border-color: var(--team1-color);');
                     }
                     const boxStyle = boxStyleParts.length ? 'style="' + boxStyleParts.join(' ') + '"' : '';
                     
                     html += '<div class="position-box ' + (state.rotationPlanner.editMode ? 'editable' : '') + '" ' + clickHandler + ' ' + boxStyle + '>';
-                    html += '<div class="pos-num" ' + (isP1 ? 'style="color: #d1d5db; font-weight: 900;"' : '') + '>P' + pos + '</div>';
+                    html += '<div class="pos-num" ' + (isP1 ? 'style="color: var(--team1-color); font-weight: 900;"' : '') + '>P' + pos + '</div>';
                     if (player) {
                         html += '<div class="player-info"><div class="jersey">' + (player.jersey || player.name.substring(0, 2).toUpperCase()) + '</div>';
                         html += '<div class="name">' + player.name + '</div></div>';
@@ -6246,12 +6307,12 @@
                     if (isSub) {
                         boxStyleParts.push('background: rgba(16, 185, 129, 0.25); border-color: #10b981; border-width: 2px;');
                     } else if (isP1) {
-                        boxStyleParts.push('background: rgba(75, 85, 99, 0.32); border-color: #6b7280;');
+                        boxStyleParts.push('background: color-mix(in srgb, var(--team2-color) 18%, transparent); border-color: var(--team2-color);');
                     }
                     const boxStyle = boxStyleParts.length ? 'style="' + boxStyleParts.join(' ') + '"' : '';
                     
                     html += '<div class="position-box ' + (state.rotationPlanner.editMode ? 'editable' : '') + '" ' + clickHandler + ' ' + boxStyle + '>';
-                    html += '<div class="pos-num" ' + (isP1 ? 'style="color: #6b7280; font-weight: 900;"' : '') + '>P' + pos + '</div>';
+                    html += '<div class="pos-num" ' + (isP1 ? 'style="color: var(--team2-color); font-weight: 900;"' : '') + '>P' + pos + '</div>';
                     if (player) {
                         html += '<div class="player-info"><div class="jersey">' + (player.jersey || player.name.substring(0, 2).toUpperCase()) + '</div>';
                         html += '<div class="name">' + player.name + '</div></div>';
