@@ -9,7 +9,7 @@
          fetches this tag fresh (bypassing cache) on every app launch and
          reloads automatically if it doesn't match. Reloading does NOT clear
          localStorage, so saved rosters/history/rotations are unaffected. -->
-    <meta name="app-version" content="2026-09-04-1">
+    <meta name="app-version" content="2026-09-06-1">
     <!-- GitHub Pages doesn't allow custom HTTP cache headers, and iOS
          "Add to Home Screen" apps can cache more aggressively than a normal
          browser tab. These meta tags are a second, independent line of
@@ -280,6 +280,28 @@
         .btn-score { background: #10b981; font-size: 18px; padding: 8px 16px; }
         .btn-undo { background: #f59e0b; }
         .btn-sub { margin-top: 4px; padding: 3px 10px; font-size: 10px; background: #f97316; }
+        .match-format-btn {
+            background: var(--button-bg);
+            color: var(--text-primary);
+            border: 2px solid var(--border-color);
+        }
+
+        .match-format-btn.active {
+            background: #10b981;
+            color: #fff;
+            border-color: #10b981;
+        }
+
+        /* Controls that are disabled for the duration of a match. They stay
+           clickable on purpose — a dead button on iPhone gives the coach no
+           feedback at all, so instead they dim and explain themselves when
+           tapped. */
+        .is-game-locked {
+            opacity: 0.4;
+            filter: grayscale(0.6);
+            cursor: not-allowed;
+        }
+
         .btn-roster { background: #8b5cf6; flex: 1; }
         .btn-load { background: #3b82f6; flex: 1; }
         .btn-save { background: #10b981; flex: 1; }
@@ -1634,9 +1656,9 @@
                             <div class="uc-bench-half-subs">Subs: <span id="visitor-subs-remaining" style="color: var(--team1-color);">12</span></div>
                             <div class="bench" id="visitor-bench"></div>
                             <div class="uc-bench-rotation-controls">
-                                <button class="btn-roster" onclick="openRoster('visitor')">Roster</button>
-                                <button class="btn-load" onclick="loadRotation('visitor')">Load</button>
-                                <button class="btn-save" onclick="saveRotation('visitor')">Save</button>
+                                <button class="btn-roster game-lock-btn" onclick="openRoster('visitor')">Roster</button>
+                                <button class="btn-load game-lock-btn" onclick="loadRotation('visitor')">Load</button>
+                                <button class="btn-save game-lock-btn" onclick="saveRotation('visitor')">Save</button>
                             </div>
                         </div>
                         <div class="uc-bench-half">
@@ -1644,9 +1666,9 @@
                             <div class="uc-bench-half-subs">Subs: <span id="home-subs-remaining" style="color: var(--team2-color);">12</span></div>
                             <div class="bench" id="home-bench"></div>
                             <div class="uc-bench-rotation-controls">
-                                <button class="btn-roster" onclick="openRoster('home')">Roster</button>
-                                <button class="btn-load" onclick="loadRotation('home')">Load</button>
-                                <button class="btn-save" onclick="saveRotation('home')">Save</button>
+                                <button class="btn-roster game-lock-btn" onclick="openRoster('home')">Roster</button>
+                                <button class="btn-load game-lock-btn" onclick="loadRotation('home')">Load</button>
+                                <button class="btn-save game-lock-btn" onclick="saveRotation('home')">Save</button>
                             </div>
                         </div>
                     </div>
@@ -1706,8 +1728,9 @@
                                                 </div>
                                             </div>
                                             <div id="uc-game-choice-controls" style="display: flex; align-items: center; justify-content: center; gap: 8px; width: 100%; flex-wrap: wrap; padding: 2px 0;">
-                                                <button style="background: #10b981; font-size: 12px; padding: 7px 12px;" onclick="startGame()">▶️ Start Game</button>
-                                                <button style="background: #8b5cf6; font-size: 12px; padding: 7px 12px;" onclick="simulateRotation()">🔁 Simulate Rotation</button>
+                                                <button id="uc-start-game-btn" style="background: #10b981; font-size: 12px; padding: 7px 12px;" onclick="startGame()">▶️ Start Match</button>
+                                                <button id="uc-simulate-btn" style="background: #8b5cf6; font-size: 12px; padding: 7px 12px;" onclick="simulateRotation()">🔁 Simulate Rotation</button>
+                                                <button id="uc-end-match-btn" style="background: #0ea5e9; font-size: 12px; padding: 7px 12px; display: none;" onclick="endMatch()">🏁 End Match</button>
                                             </div>
                                         </div>
 
@@ -1988,9 +2011,24 @@
             </div>
 
             <div class="settings-group">
+                <h3>Match Format</h3>
+                <div id="match-format-buttons" style="display: flex; gap: 8px; flex-wrap: wrap;">
+                    <button class="match-format-btn" data-format="1" style="flex: 1; min-width: 90px;" onclick="setMatchFormat(1)">Single Set</button>
+                    <button class="match-format-btn" data-format="3" style="flex: 1; min-width: 90px;" onclick="setMatchFormat(3)">Best of 3</button>
+                    <button class="match-format-btn" data-format="5" style="flex: 1; min-width: 90px;" onclick="setMatchFormat(5)">Best of 5</button>
+                </div>
+                <p id="match-format-hint" style="color: var(--text-secondary); font-size: 11px; margin-top: 8px; font-style: italic;"></p>
+            </div>
+
+            <div class="settings-group">
+                <h3>Match Control</h3>
                 <button style="background: #f59e0b; width: 100%;" onclick="startNewSet()">Start New Set</button>
-                <button style="background: #ef4444; width: 100%; margin-top: 10px;" onclick="resetAll()">🆕 Start New Match (Reset Scores & Stats)</button>
+                <button id="settings-end-match-btn" style="background: #0ea5e9; width: 100%; margin-top: 10px;" onclick="endMatch()">🏁 End Match</button>
+                <button style="background: #ef4444; width: 100%; margin-top: 10px;" onclick="resetAll()">♻️ Reset Board (Scores & Stats)</button>
                 <button style="background: #6b7280; width: 100%; margin-top: 10px;" onclick="clearSavedData()">Erase Saved Data on This Device</button>
+                <p style="color: var(--text-secondary); font-size: 11px; margin-top: 8px; font-style: italic;">
+                    End Match records the set on the board, offers to archive, then unlocks rosters and teams. Reset Board is the escape hatch for a stale or wrong board.
+                </p>
             </div>
 
             <div class="settings-group">
@@ -2215,6 +2253,14 @@
             skipConfirmations: false,
             setHistory: [],
             gameStarted: false,
+            // gameStarted means "a set is currently live" — it deliberately
+            // flips back to false between sets so the coach re-arms the
+            // scoreboard. matchInProgress spans the WHOLE match, from the
+            // first Start Match until End Match / reset, and is what roster,
+            // rotation and team controls lock against. Using gameStarted for
+            // those locks let rosters be edited between sets, which is how
+            // orphaned court players got created mid-match.
+            matchInProgress: false,
             liberoRules: {
                 enabled: false,
                 allowServing: false,
@@ -2620,29 +2666,81 @@
                     ]
                 },
                 {
-                    // Roster not publicly available yet — added as a
-                    // color-only placeholder so this 2026 schedule opponent
-                    // is at least selectable with the correct jersey color
-                    // ahead of the Aug 27 game. Real colors: black and gold.
+                    // Source: Plant Panthers 2026-27 roster (MaxPreps), Tampa, FL.
+                    // Real colors: black and gold.
                     name: 'Plant Panthers',
                     color: '#1c1c1c',
-                    players: []
+                    players: [
+                        { name: 'Marzia Mueller', jersey: '1', grade: 'Jr.', position: 'OPP' },
+                        { name: 'Elliana Gill', jersey: '3', grade: 'Fr.', position: 'S' },
+                        { name: 'Presley Johnson', jersey: '5', grade: 'So.', position: 'DS, L' },
+                        { name: 'Ella Horvick', jersey: '6', grade: 'Sr.', position: 'L, DS' },
+                        { name: 'Ella Mossbacher', jersey: '7', grade: 'Jr.', position: 'OH' },
+                        { name: "Kaia O'Malley", jersey: '8', grade: 'So.', position: 'OH' },
+                        { name: 'Gaby Godsey', jersey: '9', grade: 'So.', position: 'MB' },
+                        { name: 'Georgia Underwood', jersey: '10', grade: 'Sr.', position: 'MB' },
+                        { name: 'Sophie Dostic', jersey: '11', grade: 'Sr.', position: 'S' },
+                        { name: 'Hannah Beal', jersey: '12', grade: 'So.', position: 'OPP' },
+                        { name: 'Olivia Nalley', jersey: '13', grade: 'So.', position: 'OH, DS' },
+                        { name: 'Elyn Blaker', jersey: '15', grade: 'Fr.', position: 'MB, OPP' }
+                    ]
                 },
                 {
-                    // Roster not publicly available yet — added as a
-                    // color-only placeholder ahead of the Sept 29 game.
-                    // Real colors: navy and Columbia blue; using Columbia
-                    // blue here since navy is already used by several other
-                    // opponents on this schedule.
+                    // Source: Berkeley Prep Buccaneers 2026-27 roster (MaxPreps),
+                    // Tampa, FL. Real colors: navy and Columbia blue; using
+                    // Columbia blue here since navy is already used by several
+                    // other opponents on this schedule.
+                    //
+                    // MaxPreps lists #11 twice — "Elana Beltran" (no height) and
+                    // "Elena Beltran" (5'5"), same grade and position. That's a
+                    // duplicate entry, and two players sharing a jersey number
+                    // would break substitution tracking, so only the complete
+                    // record is kept. #1 Molly Monday is listed as "S, S",
+                    // read here as Setter.
                     name: 'Berkeley Prep Buccaneers',
                     color: '#a9cce3',
-                    players: []
+                    players: [
+                        { name: 'Molly Monday', jersey: '1', grade: 'Jr.', position: 'S' },
+                        { name: 'Caroline Hayes', jersey: '2', grade: 'Jr.', position: 'L, DS' },
+                        { name: 'Avery Hummel', jersey: '3', grade: 'So.', position: 'L, OH' },
+                        { name: 'Jolina Hanna', jersey: '4', grade: 'Fr.', position: 'MB' },
+                        { name: 'Carina Cleary', jersey: '6', grade: 'So.', position: 'DS, L' },
+                        { name: 'Elan Wilson', jersey: '7', grade: '8th', position: 'MB, OH' },
+                        { name: 'Maya Gray', jersey: '8', grade: 'Sr.', position: 'MB' },
+                        { name: 'Isa Heagle', jersey: '9', grade: 'So.', position: 'DS, L' },
+                        { name: 'Lillian More', jersey: '10', grade: 'Fr.', position: 'OPP, MB' },
+                        { name: 'Elena Beltran', jersey: '11', grade: 'Fr.', position: 'S' },
+                        { name: 'Audrey Chames', jersey: '13', grade: 'So.', position: 'OH, OPP' },
+                        { name: 'Megan Newton', jersey: '14', grade: 'Jr.', position: 'DS' },
+                        { name: 'Bella Linden', jersey: '17', grade: 'Jr.', position: 'OH, L' }
+                    ]
                 }
             ];
 
             if (!Array.isArray(state.visitorTeamBank)) {
                 state.visitorTeamBank = [];
             }
+
+            // MaxPreps position strings are comma-separated codes ("L, DS",
+            // "OH, L"). A bare "L" token means libero — matched on token
+            // boundaries so "OH" and "OPP" never register as one.
+            const isLibero = (position) => (position || '')
+                .split(',')
+                .map(code => code.trim().toUpperCase())
+                .includes('L');
+
+            const buildRosterEntry = (player, tIdx, idx) => ({
+                id: Date.now() + tIdx * 1000 + idx,
+                name: player.name,
+                jersey: player.jersey,
+                position: player.position || '',
+                grade: player.grade,
+                libero: isLibero(player.position),
+                stats: {
+                    GP: 0, SA: 0, A: 0, SE: 0, PTS: 0, ATT: 0, K: 0, E: 0,
+                    R: 0, RE: 0, BS: 0, BA: 0, BE: 0, BHA: 0, AST: 0, BHE: 0, D: 0
+                }
+            });
 
             requiredTeams.forEach((team, tIdx) => {
                 const existing = state.visitorTeamBank.find(t => t.name === team.name);
@@ -2653,6 +2751,28 @@
                     if (!existing.color && team.color) {
                         existing.color = team.color;
                     }
+
+                    // Plant and Berkeley Prep shipped as color-only
+                    // placeholders with empty rosters. Now that their rosters
+                    // are published, fill them in for coaches whose browser
+                    // already has the empty version saved. Only ever fills an
+                    // EMPTY roster — a bank entry the coach has typed players
+                    // into is never touched.
+                    if (Array.isArray(existing.roster) && existing.roster.length === 0 &&
+                        team.players.length > 0) {
+                        existing.roster = team.players.map((player, idx) =>
+                            buildRosterEntry(player, tIdx, idx));
+                    }
+
+                    // Backfill libero flags on saved entries from before
+                    // liberos were derived from the position string.
+                    if (Array.isArray(existing.roster)) {
+                        existing.roster.forEach(player => {
+                            if (!player.libero && isLibero(player.position)) {
+                                player.libero = true;
+                            }
+                        });
+                    }
                     return;
                 }
 
@@ -2661,18 +2781,7 @@
                     name: team.name,
                     color: team.color,
                     savedAt: new Date().toISOString(),
-                    roster: team.players.map((player, idx) => ({
-                        id: Date.now() + tIdx * 1000 + idx,
-                        name: player.name,
-                        jersey: player.jersey,
-                        position: player.position || '',
-                        grade: player.grade,
-                        libero: false,
-                        stats: {
-                            GP: 0, SA: 0, A: 0, SE: 0, PTS: 0, ATT: 0, K: 0, E: 0,
-                            R: 0, RE: 0, BS: 0, BA: 0, BE: 0, BHA: 0, AST: 0, BHE: 0, D: 0
-                        }
-                    }))
+                    roster: team.players.map((player, idx) => buildRosterEntry(player, tIdx, idx))
                 });
             });
         }
@@ -2686,8 +2795,8 @@
         // disable-visitor-roster toggle, which broke the currently loaded
         // team/roster when flipped.
         function loadNewGenericOpponent() {
-            if (state.gameStarted) {
-                alert('Can\'t change teams during a live game.\n\nFinish the match or use "Start New Match" in Settings to reset first.');
+            if (state.matchInProgress) {
+                alert(MATCH_LOCK_MESSAGE);
                 refreshTeamSelector('visitor');
                 return;
             }
@@ -2805,6 +2914,24 @@
                 // assumes it's always an array.
                 Object.assign(state, payload.state);
 
+                // Saves written before matchInProgress existed only knew
+                // about gameStarted. Infer the match-level flag so a coach
+                // who reloads mid-match doesn't come back to unlocked
+                // rosters: a live set, or any completed set, means a match
+                // is underway.
+                // Test against the PAYLOAD, not the merged state: state
+                // already carries a `false` default, so checking the merged
+                // value would never detect an older save.
+                if (payload.state.matchInProgress === undefined) {
+                    state.matchInProgress = !!state.gameStarted ||
+                        (Array.isArray(state.setHistory) && state.setHistory.length > 0);
+                }
+                // Match format is now a persisted setting rather than a
+                // per-start prompt. Clamp anything unexpected to best-of-3.
+                if (![1, 3, 5].includes(state.matchFormat)) {
+                    state.matchFormat = 3;
+                }
+
                 if (payload.homeTeamName) {
                     document.getElementById('home-name').textContent = payload.homeTeamName;
                     document.getElementById('home-team-name').value = payload.homeTeamName;
@@ -2919,6 +3046,8 @@
             updateSettingsButtonPlacement();
             updateSetsWonDisplay();
             updateGameChoiceDisplay();
+            refreshGameLocks();
+            refreshMatchFormatUI();
 
             // Autosave: periodic + on tab hide/close (covers iPad Safari,
             // where 'beforeunload' is unreliable)
@@ -3062,6 +3191,44 @@
             return null;
         }
 
+        /* ═══════════════════════════════════════════════════════════════════
+           MATCH LOCKING — everything that could corrupt a live match
+           ═══════════════════════════════════════════════════════════════════ */
+
+        const MATCH_LOCK_MESSAGE =
+            'Locked while a match is in progress.\n\n' +
+            'Rosters and rotations can\'t be changed once the match starts — ' +
+            'that\'s what used to leave players stranded on court with no way ' +
+            'to sub them out.\n\n' +
+            'Use "End Match" (at the net between sets, or in Settings) to unlock.';
+
+        /**
+         * Returns true and warns the coach if a match is underway.
+         * Every roster/rotation-mutating entry point calls this first.
+         */
+        function blockedByLiveMatch() {
+            if (!state.matchInProgress) return false;
+            alert(MATCH_LOCK_MESSAGE);
+            return true;
+        }
+
+        /**
+         * Dims (but does not disable) the Roster / Load / Save controls while
+         * a match is live. They stay tappable so blockedByLiveMatch() can
+         * explain why nothing happened — a truly disabled button is silent,
+         * which reads as a broken app on a phone.
+         */
+        function refreshGameLocks() {
+            const locked = !!state.matchInProgress;
+            document.querySelectorAll('.game-lock-btn').forEach(btn => {
+                btn.classList.toggle('is-game-locked', locked);
+                btn.setAttribute('aria-disabled', locked ? 'true' : 'false');
+                btn.title = locked
+                    ? 'Locked during a match — end the match to change rosters or rotations'
+                    : '';
+            });
+        }
+
         function startGame() {
             const homeError = validateTeamReady('home', 'Home');
             const visitorError = validateTeamReady('visitor', 'Visitor');
@@ -3070,15 +3237,19 @@
                 return;
             }
 
-            state.matchFormat = confirm('Best-of-5 match?\n\nOK = best of 5 (first to 3 sets)\nCancel = best of 3 (first to 2 sets)') ? 5 : 3;
-
+            // Match format now comes from Settings rather than a prompt on
+            // every Start — it was being re-asked at the top of every set,
+            // since gameStarted flips back to false between sets.
             state.gameStarted = true;
+            state.matchInProgress = true;
             updateCourt('home');
             updateCourt('visitor');
             updateVisitorDisplay();
             updateGameChoiceDisplay();
             refreshTeamSelector('home');
             refreshTeamSelector('visitor');
+            refreshGameLocks();
+            refreshMatchFormatUI();
             saveToLocalStorage();
         }
 
@@ -3092,13 +3263,35 @@
             const choiceControls = document.getElementById('uc-game-choice-controls');
             if (!liveControls || !choiceControls) return;
 
+            const startBtn = document.getElementById('uc-start-game-btn');
+            const simulateBtn = document.getElementById('uc-simulate-btn');
+            const endBtn = document.getElementById('uc-end-match-btn');
+
             if (state.gameStarted) {
+                // A set is live: scoreboard only.
                 liveControls.style.display = 'flex';
                 choiceControls.style.display = 'none';
             } else {
                 liveControls.style.display = 'none';
                 choiceControls.style.display = 'flex';
+
+                if (state.matchInProgress) {
+                    // Between sets. The only two sensible moves are to play
+                    // the next set or to close the match out — planning tools
+                    // stay hidden because the lineup is locked anyway.
+                    const nextSet = state.setHistory.length + 1;
+                    if (startBtn) startBtn.textContent = `▶️ Start Set ${nextSet}`;
+                    if (simulateBtn) simulateBtn.style.display = 'none';
+                    if (endBtn) endBtn.style.display = '';
+                } else {
+                    // Pre-match setup.
+                    if (startBtn) startBtn.textContent = '▶️ Start Match';
+                    if (simulateBtn) simulateBtn.style.display = '';
+                    if (endBtn) endBtn.style.display = 'none';
+                }
             }
+
+            refreshGameLocks();
         }
 
         function addScore(team) {
@@ -3247,6 +3440,7 @@
         }
 
         function openRoster(team) {
+            if (blockedByLiveMatch()) return;
             state.currentTeam = team;
             cancelEditPlayer();
             document.getElementById('roster-modal').classList.add('active');
@@ -3431,8 +3625,8 @@
         // an automatic roster correction) where there's nothing meaningful to
         // confirm — a coach-initiated Load still always asks first.
         function loadTeamFromBank(team, teamId, skipConfirm) {
-            if (state.gameStarted) {
-                alert('Can\'t change teams during a live game.\n\nFinish the match or use "Start New Match" in Settings to reset first, then load a different team.');
+            if (state.matchInProgress) {
+                alert(MATCH_LOCK_MESSAGE);
                 refreshTeamSelector(team);
                 return;
             }
@@ -3610,9 +3804,9 @@
 
             // Teams are locked once a game is live — reflect that in the UI.
             const applyLock = () => {
-                selector.disabled = state.gameStarted;
-                selector.title = state.gameStarted
-                    ? 'Teams are locked during a live game'
+                selector.disabled = state.matchInProgress;
+                selector.title = state.matchInProgress
+                    ? 'Teams are locked for the duration of a match'
                     : (team === 'visitor' ? 'Select opponent' : 'Select team');
             };
 
@@ -3808,6 +4002,7 @@
         }
 
         function saveRotation(team) {
+            if (blockedByLiveMatch()) return;
             const positions = state[team].positions;
             
             const name = prompt('Enter rotation name:');
@@ -3838,10 +4033,7 @@
         }
 
         function loadRotation(team) {
-            if (state.gameStarted) {
-                alert('Cannot load rotation during game!\n\nThis feature is only available before the game starts.');
-                return;
-            }
+            if (blockedByLiveMatch()) return;
             
             if (state[team].rotations.length === 0) {
                 alert('No saved rotations!\n\nSave a rotation first using the "Save" button.');
@@ -4500,12 +4692,66 @@
             status.textContent = state.statsEnabled ? 'Enabled' : 'Disabled';
         }
 
+        /* ═══════════════════════════════════════════════════════════════════
+           MATCH FORMAT — a persisted setting, not a prompt
+           ═══════════════════════════════════════════════════════════════════ */
+
+        const MATCH_FORMAT_LABELS = {
+            1: 'Single set — one set decides it.',
+            3: 'Best of 3 — first team to 2 sets.',
+            5: 'Best of 5 — first team to 3 sets.'
+        };
+
+        /**
+         * Sets how many sets the match runs to. Locked once a match starts:
+         * changing the target mid-match would retroactively re-decide sets
+         * already in the books.
+         */
+        function setMatchFormat(format) {
+            if (![1, 3, 5].includes(format)) return;
+
+            if (state.matchInProgress) {
+                alert('Match format is locked once the match starts.\n\nEnd the match first to change it.');
+                refreshMatchFormatUI();
+                return;
+            }
+
+            state.matchFormat = format;
+            refreshMatchFormatUI();
+            saveToLocalStorage();
+        }
+
+        function refreshMatchFormatUI() {
+            const buttons = document.querySelectorAll('.match-format-btn');
+            if (!buttons.length) return;
+
+            buttons.forEach(btn => {
+                const value = parseInt(btn.dataset.format, 10);
+                btn.classList.toggle('active', value === state.matchFormat);
+                btn.classList.toggle('is-game-locked', !!state.matchInProgress);
+                btn.title = state.matchInProgress ? 'Locked during a match' : '';
+            });
+
+            const hint = document.getElementById('match-format-hint');
+            if (hint) {
+                hint.textContent = (MATCH_FORMAT_LABELS[state.matchFormat] || '') +
+                    (state.matchInProgress ? ' Locked until the match ends.' : '');
+            }
+
+            const endBtn = document.getElementById('settings-end-match-btn');
+            if (endBtn) {
+                endBtn.classList.toggle('is-game-locked', !state.matchInProgress);
+                endBtn.title = state.matchInProgress ? '' : 'No match in progress';
+            }
+        }
+
         function openSettings() {
             document.getElementById('settings-modal').classList.add('active');
             document.getElementById('home-team-name').value = document.getElementById('home-name').textContent;
             document.getElementById('visitor-team-name').value = document.getElementById('visitor-name').textContent;
             const skipToggle = document.getElementById('skip-confirmations-toggle');
             if (skipToggle) skipToggle.classList.toggle('active', !!state.skipConfirmations);
+            refreshMatchFormatUI();
         }
 
         function closeSettings() {
@@ -4652,8 +4898,8 @@
                     // the game starts, matching how court/position setup
                     // locks down elsewhere once scoring begins.
                     nameInput.style.display = '';
-                    nameInput.disabled = state.gameStarted;
-                    nameInput.title = state.gameStarted ? 'Locked once the game has started' : 'Rename this generic opponent';
+                    nameInput.disabled = state.matchInProgress;
+                    nameInput.title = state.matchInProgress ? 'Locked for the duration of the match' : 'Rename this generic opponent';
                 } else {
                     nameInput.style.display = 'none';
                     nameInput.classList.remove('blink-invite');
@@ -4689,6 +4935,10 @@
         }
 
         function startNewSet() {
+            if (!state.matchInProgress) {
+                alert('No match is in progress.\n\nUse "Start Match" at the net to begin one.');
+                return;
+            }
             const setNumber = state.setHistory.length + 1;
             state.setHistory.push({
                 setNumber: setNumber,
@@ -4705,6 +4955,8 @@
             state.visitor.subsRemaining = 12;
             state.home.teamKills = 0;
             state.visitor.teamKills = 0;
+            // The set is over but the MATCH is not — matchInProgress stays
+            // true so rosters and teams remain locked between sets.
             state.gameStarted = false;
             
             document.getElementById('home-score').textContent = '0';
@@ -4715,6 +4967,7 @@
             
             updateCourt('home');
             updateCourt('visitor');
+            updateGameChoiceDisplay();
 
             const homeTeamName = document.getElementById('home-name').textContent;
             const visitorTeamName = document.getElementById('visitor-name').textContent;
@@ -4730,6 +4983,133 @@
             }
         }
 
+        /**
+         * Wipes all live match state back to a clean pre-match board:
+         * scores, sets, stats, substitution counters and the point-by-point
+         * timeline. Court lineups and rosters are deliberately left alone —
+         * the coach usually wants to run the same six again next match.
+         *
+         * Shared by endMatch() and resetAll() so the two can never drift
+         * apart and leave one of them half-clearing state.
+         */
+        function clearLiveMatchState() {
+            const freshStats = () => ({
+                GP: 0, SA: 0, A: 0, SE: 0, PTS: 0, ATT: 0, K: 0, E: 0,
+                R: 0, RE: 0, BS: 0, BA: 0, BE: 0, BHA: 0, AST: 0, BHE: 0, D: 0
+            });
+
+            state.matchTimeline = [];
+            pendingPointEvent = null;
+
+            state.home.score = 0;
+            state.visitor.score = 0;
+            state.home.subsRemaining = 12;
+            state.visitor.subsRemaining = 12;
+            state.home.teamKills = 0;
+            state.visitor.teamKills = 0;
+
+            state.home.substitutions = [];
+            state.visitor.substitutions = [];
+            state.home.history = [];
+            state.visitor.history = [];
+            state.setHistory = [];
+
+            state.home.roster.forEach(player => { player.stats = freshStats(); });
+            state.visitor.roster.forEach(player => { player.stats = freshStats(); });
+
+            // Both flags clear together — the match is over, so every roster,
+            // rotation and team control unlocks.
+            state.gameStarted = false;
+            state.matchInProgress = false;
+
+            document.getElementById('home-score').textContent = '0';
+            document.getElementById('visitor-score').textContent = '0';
+            document.getElementById('home-subs-remaining').textContent = '12';
+            document.getElementById('visitor-subs-remaining').textContent = '12';
+
+            updateSetsWonDisplay();
+            updateCourt('home');
+            updateCourt('visitor');
+            updateStatsTable();
+            updateGameChoiceDisplay();
+            refreshTeamSelector('home');
+            refreshTeamSelector('visitor');
+            updateVisitorDisplay();
+            refreshGameLocks();
+            refreshMatchFormatUI();
+            saveToLocalStorage();
+        }
+
+        /**
+         * Normal end-of-night path. Records a set that's still on the board,
+         * offers to archive, then clears and unlocks. This is the button a
+         * coach should reach for — resetAll() is the escape hatch for when
+         * the board is stale or wrong.
+         */
+        function endMatch() {
+            if (!state.matchInProgress) {
+                alert('No match is in progress.');
+                return;
+            }
+
+            const homeTeamName = document.getElementById('home-name').textContent;
+            const visitorTeamName = document.getElementById('visitor-name').textContent;
+            const liveSetHasPoints = state.home.score > 0 || state.visitor.score > 0;
+
+            // A set still showing points has never been pushed into
+            // setHistory, so it would vanish from the archive. Fold it in
+            // first rather than silently dropping the last set of the night.
+            if (liveSetHasPoints) {
+                if (!confirmAction(
+                    `Set ${state.setHistory.length + 1} is still on the board at ` +
+                    `${homeTeamName} ${state.home.score} – ${state.visitor.score} ${visitorTeamName}.\n\n` +
+                    'End the match and record it as the final set?')) return;
+
+                state.setHistory.push({
+                    setNumber: state.setHistory.length + 1,
+                    homeScore: state.home.score,
+                    visitorScore: state.visitor.score,
+                    homeKills: state.home.teamKills,
+                    visitorKills: state.visitor.teamKills,
+                    date: new Date().toLocaleString()
+                });
+
+                // archiveCurrentMatch() appends the live score as an extra
+                // in-progress set whenever the board is non-zero. The set has
+                // just been committed to setHistory, so clear the board now or
+                // it lands in the archive twice.
+                state.home.score = 0;
+                state.visitor.score = 0;
+                state.home.teamKills = 0;
+                state.visitor.teamKills = 0;
+            }
+
+            const setsWonHome = state.setHistory.filter(s => s.homeScore > s.visitorScore).length;
+            const setsWonVisitor = state.setHistory.filter(s => s.visitorScore > s.homeScore).length;
+
+            if (!liveSetHasPoints) {
+                const summary = state.setHistory.length === 0
+                    ? 'No sets have been completed yet.'
+                    : `Final: ${homeTeamName} ${setsWonHome} – ${setsWonVisitor} ${visitorTeamName}`;
+                if (!confirmAction(`End this match?\n\n${summary}\n\nRosters, rotations and team selection will unlock.`)) return;
+            }
+
+            if (state.setHistory.length > 0) {
+                if (confirmAction('Save this match to Match History?\n\nRecommended — this is your only chance to keep the final score, stats and point-by-point replay.')) {
+                    archiveCurrentMatch();
+                }
+            }
+
+            clearLiveMatchState();
+
+            const winner = setsWonHome === setsWonVisitor
+                ? null
+                : (setsWonHome > setsWonVisitor ? homeTeamName : visitorTeamName);
+            alert(winner
+                ? `🏁 Match ended — ${winner} wins ${Math.max(setsWonHome, setsWonVisitor)}–${Math.min(setsWonHome, setsWonVisitor)}.\n\nRosters and teams are unlocked.`
+                : '🏁 Match ended. Rosters and teams are unlocked.');
+        }
+
         function resetAll() {
             const hasMatchData = state.setHistory.length > 0 || state.home.score > 0 || state.visitor.score > 0;
             if (hasMatchData) {
@@ -4738,53 +5118,10 @@
                 }
             }
 
-            if (!confirmAction('⚠️ Start a new match?\n\nThis will:\n• Clear all scores\n• Reset all player statistics to 0\n• Clear set history and point-by-point replay data\n• Reset substitution counters\n\nThis action cannot be undone!')) return;
+            if (!confirmAction('⚠️ Reset the board?\n\nThis will:\n• Clear all scores\n• Reset all player statistics to 0\n• Clear set history and point-by-point replay data\n• Reset substitution counters\n• Unlock rosters, rotations and teams\n\nThis action cannot be undone!')) return;
 
-            state.matchTimeline = [];
-            pendingPointEvent = null;
-            
-            state.home.score = 0;
-            state.visitor.score = 0;
-            state.home.subsRemaining = 12;
-            state.visitor.subsRemaining = 12;
-            state.home.teamKills = 0;
-            state.visitor.teamKills = 0;
-            state.gameStarted = false;
-            
-            state.home.substitutions = [];
-            state.visitor.substitutions = [];
-            state.home.history = [];
-            state.visitor.history = [];
-            state.setHistory = [];
-            updateSetsWonDisplay();
-            
-            state.home.roster.forEach(player => {
-                player.stats = {
-                    GP: 0, SA: 0, A: 0, SE: 0, PTS: 0, ATT: 0, K: 0, E: 0,
-                    R: 0, RE: 0, BS: 0, BA: 0, BE: 0, BHA: 0, AST: 0, BHE: 0, D: 0
-                };
-            });
-            
-            state.visitor.roster.forEach(player => {
-                player.stats = {
-                    GP: 0, SA: 0, A: 0, SE: 0, PTS: 0, ATT: 0, K: 0, E: 0,
-                    R: 0, RE: 0, BS: 0, BA: 0, BE: 0, BHA: 0, AST: 0, BHE: 0, D: 0
-                };
-            });
-            
-            document.getElementById('home-score').textContent = '0';
-            document.getElementById('visitor-score').textContent = '0';
-            document.getElementById('home-subs-remaining').textContent = '12';
-            document.getElementById('visitor-subs-remaining').textContent = '12';
-            
-            updateCourt('home');
-            updateCourt('visitor');
-            updateStatsTable();
-            updateGameChoiceDisplay();
-            refreshTeamSelector('home');
-            refreshTeamSelector('visitor');
-            updateVisitorDisplay();
-            
+            clearLiveMatchState();
+
             alert('✅ All scores and stats have been reset!');
         }
 
@@ -6776,13 +7113,29 @@
             // has no access to this app's DOM. A snapshot is only kept if
             // the coach actually drew something on it; otherwise that
             // rotation gets a blank writable box in the printout instead.
+            // Re-render each rotation's strokes onto a fresh offscreen
+            // canvas shaped to match the print whiteboard box (tall
+            // portrait), WITHOUT the app's faint court-diagram background.
+            // Capturing the live mini-canvas directly baked in that court
+            // overlay AND its wide app aspect ratio, which then letterboxed
+            // into a small centered strip — making drawn boxes look nothing
+            // like the blank writable boxes. Redrawing from the stored
+            // normalized strokes keeps every box visually unified.
+            const PRINT_WB_W = 300;
+            const PRINT_WB_H = 420;
             const whiteboardImages = [0, 1, 2, 3, 4, 5].map(idx => {
                 const strokes = (plan.rotationWhiteboards && plan.rotationWhiteboards[idx]) || [];
                 if (strokes.length === 0) return null;
-                const canvas = document.getElementById('rotation-whiteboard-' + idx);
-                if (!canvas || canvas.width === 0 || canvas.height === 0) return null;
                 try {
-                    return canvas.toDataURL('image/png');
+                    const off = document.createElement('canvas');
+                    off.width = PRINT_WB_W;
+                    off.height = PRINT_WB_H;
+                    const octx = off.getContext('2d');
+                    if (!octx) return null;
+                    // Transparent background so the print box's own faint grid
+                    // shows through — identical surface to the blank boxes.
+                    strokes.forEach(stroke => drawStrokeOnCanvas(octx, off, stroke));
+                    return off.toDataURL('image/png');
                 } catch (e) {
                     return null;
                 }
@@ -6920,6 +7273,7 @@
                             width: 100%;
                             height: 100%;
                             object-fit: contain;
+                            z-index: 1;
                         }
                         .wb-label {
                             position: absolute;
@@ -6929,6 +7283,7 @@
                             color: #bbb;
                             text-transform: uppercase;
                             letter-spacing: 0.5px;
+                            z-index: 2;
                         }
                         @media print {
                             @page { margin: 0.3in; size: portrait; }
@@ -6999,7 +7354,7 @@
                                 : '';
 
                             const wbHtml = whiteboardImages[idx]
-                                ? `<div class="wb"><img src="${whiteboardImages[idx]}" alt="Rotation ${idx + 1} court notes"></div>`
+                                ? `<div class="wb"><span class="wb-label">Notes</span><img src="${whiteboardImages[idx]}" alt="Rotation ${idx + 1} court notes"></div>`
                                 : `<div class="wb"><span class="wb-label">Notes</span></div>`;
 
                             return `
