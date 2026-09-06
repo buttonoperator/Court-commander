@@ -770,6 +770,15 @@
             cursor: not-allowed;
         }
 
+        @keyframes blinkInvite {
+            0%, 50% { border-color: rgba(255, 255, 255, 0.55); box-shadow: none; }
+            51%, 100% { border-color: #fbbf24; box-shadow: 0 0 0 2px rgba(251, 191, 36, 0.5); }
+        }
+
+        .blink-invite {
+            animation: blinkInvite 1s step-end infinite;
+        }
+
         /* Native dropdown option lists render outside the colored header, so
            options need dark text to stay readable against their own
            (light) popup background. */
@@ -1657,7 +1666,7 @@
                                     <select id="visitor-team-selector" onchange="selectTeamFromDropdown('visitor', this.value)" class="uc-team-header-select" title="Select opponent">
                                         <option value="">— Select opponent —</option>
                                     </select>
-                                    <input type="text" id="visitor-generic-name-input" class="uc-team-header-select" style="display: none;" placeholder="Visitor" oninput="updateGenericVisitorName(this.value)" title="Edit the visitor team name">
+                                    <input type="text" id="visitor-generic-name-input" class="uc-team-header-select blink-invite" style="display: none; flex: 0 0 120px;" placeholder="Team name" oninput="updateGenericVisitorName(this.value)" title="Rename this generic opponent">
                                     <h2 class="team-name" id="visitor-name" style="display: none;">Visitor Team</h2>
                                 </div>
 
@@ -1731,13 +1740,6 @@
                     <div style="display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 10px; margin-bottom: 15px;">
                         <h2 style="color: var(--text-primary); margin: 0;">Player Statistics</h2>
                         <button class="btn-export" onclick="exportStats()">📊 Export Stats</button>
-                    </div>
-                    <div style="margin-bottom: 15px; display: flex; align-items: center; gap: 10px;">
-                        <span style="color: var(--text-primary);">Stats Tracking:</span>
-                        <div class="toggle-switch active" id="stats-toggle-main" onclick="toggleStatsMain()">
-                            <div class="toggle-slider"></div>
-                        </div>
-                        <span style="color: var(--text-secondary); font-size: 14px;" id="stats-status">Enabled</span>
                     </div>
                     <div class="stats-container">
                         <table class="stats-table">
@@ -1952,32 +1954,12 @@
             </div>
 
             <div class="settings-group">
-                <h3>Stats Tracking</h3>
-                <div style="display: flex; align-items: center; gap: 15px;">
-                    <div class="toggle-switch active" id="stats-toggle" onclick="toggleStats()">
-                        <div class="toggle-slider"></div>
-                    </div>
-                    <span style="color: var(--text-primary);">Enable stats collection after each point</span>
-                </div>
-            </div>
-
-            <div class="settings-group">
                 <h3>Confirmation Prompts</h3>
                 <div style="display: flex; align-items: center; gap: 15px;">
                     <div class="toggle-switch" id="skip-confirmations-toggle" onclick="toggleSkipConfirmations()">
                         <div class="toggle-slider"></div>
                     </div>
                     <span style="color: var(--text-primary);">Skip "Are you sure?" prompts (load, overwrite, delete)</span>
-                </div>
-            </div>
-
-            <div class="settings-group">
-                <h3>Visitor Team Options</h3>
-                <div style="display: flex; align-items: center; gap: 15px;">
-                    <div class="toggle-switch" id="visitor-roster-toggle" onclick="toggleVisitorRoster()">
-                        <div class="toggle-slider"></div>
-                    </div>
-                    <span style="color: var(--text-primary);">Disable visitor roster, bench, and rotations</span>
                 </div>
             </div>
 
@@ -2696,23 +2678,75 @@
         }
 
         // Generic visitor positions (roles only, no names)
-        function loadGenericVisitorPositions() {
-            const genericPositions = [
+        // Creates a full placeholder roster for an unknown/unrostered
+        // opponent — 6 starting positions plus 2 bench subs, all real
+        // player-shaped objects (with their own .stats), so stats track
+        // normally for them exactly like a real roster would. This is what
+        // "New Opponent" in the dropdown loads, replacing the old
+        // disable-visitor-roster toggle, which broke the currently loaded
+        // team/roster when flipped.
+        function loadNewGenericOpponent() {
+            if (state.gameStarted) {
+                alert('Can\'t change teams during a live game.\n\nFinish the match or use "Start New Match" in Settings to reset first.');
+                refreshTeamSelector('visitor');
+                return;
+            }
+
+            const freshStats = () => ({
+                GP: 0, SA: 0, A: 0, SE: 0, PTS: 0, ATT: 0, K: 0, E: 0,
+                R: 0, RE: 0, BS: 0, BA: 0, BE: 0, BHA: 0, AST: 0, BHE: 0, D: 0
+            });
+
+            const genericSlots = [
                 { role: 'Setter', shortCode: 'S' },
-                { role: 'Outside Hitter', shortCode: 'OH' },
-                { role: 'Middle Blocker', shortCode: 'MB' },
-                { role: 'Outside Hitter', shortCode: 'OH' },
-                { role: 'Middle Blocker', shortCode: 'MB' },
-                { role: 'Right Side', shortCode: 'RS' }
+                { role: 'Outside Hitter', shortCode: 'OH1' },
+                { role: 'Middle Blocker', shortCode: 'MB1' },
+                { role: 'Outside Hitter', shortCode: 'OH2' },
+                { role: 'Middle Blocker', shortCode: 'MB2' },
+                { role: 'Right Side', shortCode: 'RS' },
+                { role: 'Bench', shortCode: 'B1' },
+                { role: 'Bench', shortCode: 'B2' }
             ];
 
-            state.visitor.positions = genericPositions.map((pos, idx) => ({
-                id: `visitor-generic-${idx}`,
-                name: pos.role,
-                jersey: pos.shortCode,
-                position: pos.role,
-                isGeneric: true
+            const uniquePrefix = Date.now();
+            const genericRoster = genericSlots.map((slot, idx) => ({
+                id: uniquePrefix + idx,
+                name: slot.role,
+                jersey: slot.shortCode,
+                position: slot.role,
+                isGeneric: true,
+                libero: false,
+                stats: freshStats()
             }));
+
+            state.visitor.roster = genericRoster;
+            state.visitor.positions = genericRoster.slice(0, 6);
+            state.currentVisitorTeamId = 'new-opponent';
+            state.visitorRosterEnabled = true;
+
+            document.getElementById('visitor-name').textContent = 'New Opponent';
+            document.getElementById('visitor-team-name').value = 'New Opponent';
+
+            updateVisitorDisplay();
+            updateBench('visitor');
+            updateCourt('visitor');
+            updateStatsTable();
+            refreshTeamSelector('visitor');
+
+            // Cue the coach to rename this generic team, right after loading.
+            const nameInput = document.getElementById('visitor-generic-name-input');
+            if (nameInput) nameInput.classList.add('blink-invite');
+
+            saveToLocalStorage();
+        }
+
+        function updateGenericVisitorName(value) {
+            const trimmed = value.trim() || 'New Opponent';
+            document.getElementById('visitor-name').textContent = trimmed;
+            document.getElementById('visitor-team-name').value = trimmed;
+            const nameInput = document.getElementById('visitor-generic-name-input');
+            if (nameInput) nameInput.classList.remove('blink-invite');
+            saveToLocalStorage();
         }
 
         // ============================================
@@ -2835,10 +2869,9 @@
         function init() {
             const restored = loadFromLocalStorage();
 
-            if (!restored) {
-                // Load generic visitor positions
-                loadGenericVisitorPositions();
-            }
+            // A fresh session starts with an empty visitor court — the
+            // coach picks either a real team or "New Opponent" from the
+            // dropdown explicitly, rather than silently defaulting to one.
 
             // Runs every load, not just the first — ensures required teams
             // exist (home: current Varsity + the 2025 champions homage entry;
@@ -2993,22 +3026,59 @@
         // "Simulate Rotation" jumps into the rotation planner instead
         // without committing to a live match — the court stays in setup
         // mode either way until Start Game is actually clicked.
+        // Verifies a team is genuinely ready for a live match — not just
+        // "6 boxes filled" but that those 6 players are real, distinct
+        // members of the team's actual roster, and that a bench exists to
+        // sub from. This closes the family of bugs where a game could start
+        // with court players who weren't in the roster (making them
+        // impossible to sub out, since the bench is derived as
+        // roster−onCourt). Returns null if OK, or an error string.
+        function validateTeamReady(team, label) {
+            const positions = state[team].positions;
+            const roster = state[team].roster;
+            const filled = positions.filter(p => p !== null);
+
+            if (filled.length < 6) {
+                return `${label} has only ${filled.length}/6 court positions filled. Click any empty court slot to assign a player.`;
+            }
+
+            if (!roster || roster.length === 0) {
+                return `${label} has no roster loaded. Use the Roster button (or pick a team from the selector) to load players before starting.`;
+            }
+
+            const rosterIds = new Set(roster.map(p => p.id));
+            const orphaned = filled.filter(p => !rosterIds.has(p.id));
+            if (orphaned.length > 0) {
+                return `${label} has ${orphaned.length} player(s) on court who aren't in the loaded roster. Re-load the ${label.toLowerCase()} roster and set the lineup again — this is the state that made players impossible to sub out.`;
+            }
+
+            // A full 6-on-court with a 6-player roster means zero bench and
+            // therefore no legal substitution is possible. Flag it now
+            // rather than letting the coach discover it mid-match.
+            if (roster.length < 7) {
+                return `${label} roster has only ${roster.length} players — with all 6 on court there's no one on the bench to substitute in. Add at least one more player to the ${label.toLowerCase()} roster first.`;
+            }
+
+            return null;
+        }
+
         function startGame() {
-            const homeFilled = state.home.positions.filter(p => p !== null).length;
-            const visitorFilled = state.visitor.positions.filter(p => p !== null).length;
-            if (homeFilled < 6 || visitorFilled < 6) {
-                const shortTeams = [];
-                if (homeFilled < 6) shortTeams.push(`Home (${homeFilled}/6)`);
-                if (visitorFilled < 6) shortTeams.push(`Visitor (${visitorFilled}/6)`);
-                alert('Cannot start the game — all 6 court positions must be filled first.\n\n' + shortTeams.join('\n') + '\n\nClick any empty court slot to assign a player.');
+            const homeError = validateTeamReady('home', 'Home');
+            const visitorError = validateTeamReady('visitor', 'Visitor');
+            if (homeError || visitorError) {
+                alert('Cannot start the game yet:\n\n' + [homeError, visitorError].filter(Boolean).join('\n\n'));
                 return;
             }
+
+            state.matchFormat = confirm('Best-of-5 match?\n\nOK = best of 5 (first to 3 sets)\nCancel = best of 3 (first to 2 sets)') ? 5 : 3;
 
             state.gameStarted = true;
             updateCourt('home');
             updateCourt('visitor');
             updateVisitorDisplay();
             updateGameChoiceDisplay();
+            refreshTeamSelector('home');
+            refreshTeamSelector('visitor');
             saveToLocalStorage();
         }
 
@@ -3177,11 +3247,6 @@
         }
 
         function openRoster(team) {
-            if (team === 'visitor' && !state.visitorRosterEnabled) {
-                alert('Visitor roster is disabled.\n\nTurn off "Disable visitor roster, bench, and rotations" in Settings first to manage a specific opponent roster.');
-                return;
-            }
-
             state.currentTeam = team;
             cancelEditPlayer();
             document.getElementById('roster-modal').classList.add('active');
@@ -3366,9 +3431,9 @@
         // an automatic roster correction) where there's nothing meaningful to
         // confirm — a coach-initiated Load still always asks first.
         function loadTeamFromBank(team, teamId, skipConfirm) {
-            if (team === 'visitor' && !state.visitorRosterEnabled) {
-                alert('Visitor roster is disabled.\n\nTurn off "Disable visitor roster, bench, and rotations" in Settings first if you want to load a specific opponent team.');
-                refreshTeamSelector('visitor');
+            if (state.gameStarted) {
+                alert('Can\'t change teams during a live game.\n\nFinish the match or use "Start New Match" in Settings to reset first, then load a different team.');
+                refreshTeamSelector(team);
                 return;
             }
 
@@ -3536,18 +3601,40 @@
             const currentName = nameEl ? nameEl.textContent : '';
             const bank = getBankArray(team);
 
-            selector.innerHTML = ['<option value="">— Select saved team —</option>']
-                .concat(bank.map(t => `<option value="${t.id}">${t.name} (${t.roster.length})</option>`))
-                .join('');
+            const options = ['<option value="">— Select saved team —</option>'];
+            if (team === 'visitor') {
+                options.push('<option value="new-opponent">✨ New Opponent (generic)</option>');
+            }
+            options.push(...bank.map(t => `<option value="${t.id}">${t.name} (${t.roster.length})</option>`));
+            selector.innerHTML = options.join('');
+
+            // Teams are locked once a game is live — reflect that in the UI.
+            const applyLock = () => {
+                selector.disabled = state.gameStarted;
+                selector.title = state.gameStarted
+                    ? 'Teams are locked during a live game'
+                    : (team === 'visitor' ? 'Select opponent' : 'Select team');
+            };
+
+            if (team === 'visitor' && state.currentVisitorTeamId === 'new-opponent') {
+                selector.value = 'new-opponent';
+                applyLock();
+                return;
+            }
 
             // If the roster currently loaded matches a bank entry by name,
             // reflect that in the dropdown instead of always showing the placeholder.
             const match = bank.find(t => t.name === currentName);
             selector.value = match ? String(match.id) : '';
+            applyLock();
         }
 
         function selectTeamFromDropdown(team, teamId) {
             if (!teamId) return;
+            if (team === 'visitor' && teamId === 'new-opponent') {
+                loadNewGenericOpponent();
+                return;
+            }
             loadTeamFromBank(team, Number(teamId));
         }
 
@@ -3991,11 +4078,25 @@
             const currentPlayer = state[team].positions[positionIdx];
             if (!currentPlayer) return;
             
+            const roster = state[team].roster;
+            const rosterIds = new Set((roster || []).map(p => p.id));
+
+            // If the player standing here isn't even in the roster, the
+            // lineup is in the corrupted state that made subs impossible.
+            // Tell the coach exactly how to recover instead of failing
+            // silently (the old behavior — an empty bench list and no
+            // explanation, which is what "load the same roster to fix it"
+            // was working around).
+            if (!rosterIds.has(currentPlayer.id)) {
+                alert('This lineup is out of sync with the loaded roster, so substitutions can\'t be made safely.\n\nTo fix: reload this team\'s roster from the Roster button and set the lineup again.');
+                return;
+            }
+
             const onCourt = state[team].positions.filter(p => p !== null).map(p => p.id);
-            const benchPlayers = state[team].roster.filter(p => !onCourt.includes(p.id));
+            const benchPlayers = roster.filter(p => !onCourt.includes(p.id));
             
             if (benchPlayers.length === 0) {
-                alert('No bench players available');
+                alert('No bench players available to substitute in.\n\nEveryone on the roster is already on the court. Add more players to the roster (via the Roster button) to have subs available.');
                 return;
             }
             
@@ -4465,32 +4566,6 @@
             if (status) status.textContent = state.statsEnabled ? 'Enabled' : 'Disabled';
         }
 
-        function toggleVisitorRoster() {
-            state.visitorRosterEnabled = !state.visitorRosterEnabled;
-            const toggle = document.getElementById('visitor-roster-toggle');
-            toggle.classList.toggle('active');
-            
-            if (!state.visitorRosterEnabled) {
-                // Disabling: there's no real opponent roster while this is
-                // off. Reset to a clean generic identity so nothing stale
-                // (a previously loaded team's name, roster, or per-player
-                // stats) carries over or leaks into the stat sheet.
-                loadGenericVisitorPositions();
-                state.visitor.roster = [];
-                state.currentVisitorTeamId = null;
-                document.getElementById('visitor-name').textContent = 'Visitor';
-                document.getElementById('visitor-team-name').value = 'Visitor';
-                const nameInput = document.getElementById('visitor-generic-name-input');
-                if (nameInput) nameInput.value = 'Visitor';
-            } else {
-                // Clear generic positions if enabling full roster
-                state.visitor.positions = [null, null, null, null, null, null];
-            }
-            
-            updateVisitorDisplay();
-            updateStatsTable();
-        }
-
         /* ═══════════════════════════════════════════════════════════════════
            VISITOR GENERIC ROLE MANAGEMENT
            ═══════════════════════════════════════════════════════════════════ */
@@ -4562,42 +4637,30 @@
 
         function updateVisitorDisplay() {
             const benchSection = document.getElementById('visitor-bench-section');
-            
-            if (state.visitorRosterEnabled) {
-                benchSection.style.display = 'flex';
-            } else {
-                benchSection.style.display = 'none';
-            }
+            benchSection.style.display = 'flex';
 
             const selector = document.getElementById('visitor-team-selector');
             const nameInput = document.getElementById('visitor-generic-name-input');
+            const isGenericOpponent = state.currentVisitorTeamId === 'new-opponent';
 
-            if (state.visitorRosterEnabled) {
-                if (selector) selector.style.display = '';
-                if (nameInput) nameInput.style.display = 'none';
-            } else {
-                // No real opponent while disabled — swap the (now useless)
-                // dropdown for a plain editable name field instead, so the
-                // coach can still customize the generic "Visitor" label
-                // (e.g. "Scrimmage Team") without needing a full roster.
-                // Locked once the game starts, matching how court/position
-                // setup locks down elsewhere once scoring begins.
-                if (selector) selector.style.display = 'none';
-                if (nameInput) {
+            if (selector) selector.style.display = '';
+
+            if (nameInput) {
+                if (isGenericOpponent) {
+                    // A generic opponent's name is worth customizing — show
+                    // the rename field alongside the dropdown. Locked once
+                    // the game starts, matching how court/position setup
+                    // locks down elsewhere once scoring begins.
                     nameInput.style.display = '';
                     nameInput.disabled = state.gameStarted;
-                    nameInput.title = state.gameStarted ? 'Locked once the game has started' : 'Edit the visitor team name';
+                    nameInput.title = state.gameStarted ? 'Locked once the game has started' : 'Rename this generic opponent';
+                } else {
+                    nameInput.style.display = 'none';
+                    nameInput.classList.remove('blink-invite');
                 }
             }
             
             updateCourt('visitor');
-        }
-
-        function updateGenericVisitorName(value) {
-            const trimmed = value.trim() || 'Visitor';
-            document.getElementById('visitor-name').textContent = trimmed;
-            document.getElementById('visitor-team-name').value = trimmed;
-            saveToLocalStorage();
         }
 
         function toggleWhiteboard() {
@@ -4677,7 +4740,6 @@
 
             if (!confirmAction('⚠️ Start a new match?\n\nThis will:\n• Clear all scores\n• Reset all player statistics to 0\n• Clear set history and point-by-point replay data\n• Reset substitution counters\n\nThis action cannot be undone!')) return;
 
-            state.matchFormat = confirm('Best-of-5 match?\n\nOK = best of 5 (first to 3 sets)\nCancel = best of 3 (first to 2 sets)') ? 5 : 3;
             state.matchTimeline = [];
             pendingPointEvent = null;
             
@@ -4719,6 +4781,9 @@
             updateCourt('visitor');
             updateStatsTable();
             updateGameChoiceDisplay();
+            refreshTeamSelector('home');
+            refreshTeamSelector('visitor');
+            updateVisitorDisplay();
             
             alert('✅ All scores and stats have been reset!');
         }
@@ -6706,19 +6771,6 @@
                 return;
             }
 
-            // Snapshot each rotation's mini court-diagram whiteboard as an image
-            // now, while the live canvases are still on screen — the print
-            // document is a separate window with no access to this app's DOM.
-            const whiteboardImages = [0, 1, 2, 3, 4, 5].map(idx => {
-                const canvas = document.getElementById('rotation-whiteboard-' + idx);
-                if (!canvas || canvas.width === 0 || canvas.height === 0) return null;
-                try {
-                    return canvas.toDataURL('image/png');
-                } catch (e) {
-                    return null;
-                }
-            });
-
             const printWindow = window.open('', '_blank');
             const doc = printWindow.document;
             
@@ -6732,269 +6784,161 @@
                         * { margin: 0; padding: 0; box-sizing: border-box; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
                         body {
                             font-family: Arial, sans-serif;
-                            padding: 12px;
+                            padding: 8px;
                             background: white;
                             color: black;
                         }
-                        .header {
+                        .plan-meta {
                             display: flex;
-                            align-items: baseline;
-                            justify-content: center;
-                            gap: 10px;
-                            margin-bottom: 8px;
-                            border-bottom: 2px solid #333;
-                            padding-bottom: 6px;
-                        }
-                        .header h1 {
-                            font-size: 17px;
-                        }
-                        .header .subtitle {
-                            color: #666;
-                            font-size: 11px;
-                        }
-                        .team-info {
-                            display: flex;
-                            justify-content: space-around;
-                            margin-bottom: 10px;
-                            font-size: 11px;
+                            justify-content: space-between;
+                            font-size: 9px;
+                            color: #555;
+                            margin-bottom: 6px;
                         }
                         .rotation-grid {
                             display: grid;
                             grid-template-columns: repeat(3, 1fr);
-                            gap: 10px;
+                            gap: 6px;
                         }
                         .rotation-card {
-                            border: 2px solid #333;
-                            border-radius: 6px;
-                            padding: 8px;
+                            border: 1px solid #999;
+                            border-radius: 4px;
+                            padding: 5px;
                             page-break-inside: avoid;
                             overflow: hidden;
                         }
-                        .rotation-card h3 {
+                        .rotation-title {
                             text-align: center;
-                            margin-bottom: 6px;
-                            font-size: 13px;
-                            background: #333;
-                            color: white;
-                            padding: 4px;
-                            border-radius: 3px;
-                        }
-                        .court-section {
-                            margin-bottom: 6px;
-                        }
-                        .court-section h4 {
-                            font-size: 10px;
+                            font-size: 11px;
+                            font-weight: bold;
+                            text-decoration: underline;
                             margin-bottom: 4px;
-                            color: #666;
                         }
                         .court {
                             display: grid;
                             grid-template-columns: repeat(3, 1fr);
-                            gap: 4px;
-                            border: 2px solid #333;
-                            padding: 5px;
-                            background: #f9f9f9;
+                            gap: 2px;
+                            border: 1px solid #999;
+                            padding: 2px;
+                            margin-bottom: 3px;
                         }
                         .position {
-                            border: 1px solid #666;
-                            padding: 4px;
+                            border: 1px solid #bbb;
+                            padding: 2px;
                             text-align: center;
                             background: white;
-                            min-height: 44px;
+                            min-height: 26px;
                             display: flex;
                             flex-direction: column;
                             justify-content: center;
                         }
                         .position.sub-needed {
                             background: #d1fae5;
-                            border: 2px solid #10b981;
+                            border: 1px solid #10b981;
                         }
                         .position.p1-visitor {
                             background: #e5e7eb;
-                            border: 2px solid #9ca3af;
+                            border: 1px solid #9ca3af;
                         }
                         .position.p1-home {
                             background: #9ca3af;
-                            border: 2px solid #4b5563;
-                        }
-                        .position .pos-label {
-                            font-size: 8px;
-                            color: #999;
-                            font-weight: bold;
-                        }
-                        .position.p1-visitor .pos-label, .position.p1-home .pos-label {
-                            color: #374151;
-                            font-weight: 900;
+                            border: 1px solid #4b5563;
                         }
                         .position .jersey {
                             font-size: 13px;
                             font-weight: bold;
-                            margin: 2px 0;
+                            line-height: 1;
                         }
-                        .position .name {
-                            font-size: 9px;
-                            color: #333;
-                            line-height: 1.15;
-                        }
-                        .position .sub-badge {
+                        .position .role {
                             font-size: 7px;
-                            font-weight: 800;
-                            color: #059669;
-                            margin-top: 1px;
-                        }
-                        .sub-notes {
-                            margin-top: 6px;
-                            padding: 4px 6px;
-                            background: #d1fae5;
-                            border: 1px solid #10b981;
-                            border-radius: 4px;
-                        }
-                        .sub-notes .sub-notes-title {
-                            font-size: 9px;
-                            font-weight: 800;
-                            color: #059669;
-                            margin-bottom: 1px;
-                        }
-                        .sub-notes .sub-notes-line {
-                            font-size: 9px;
-                            color: #111;
-                        }
-                        .rotation-whiteboard-img {
-                            margin-top: 6px;
-                            width: 100%;
-                            border: 1px solid #999;
-                            border-radius: 4px;
-                            display: block;
-                        }
-                        .rotation-whiteboard-label {
-                            font-size: 8px;
                             color: #666;
-                            margin-top: 3px;
-                            margin-bottom: 1px;
-                            font-weight: bold;
-                            text-transform: uppercase;
-                            letter-spacing: 0.5px;
+                            line-height: 1;
                         }
-                        .notes-section {
-                            margin-top: 30px;
-                            page-break-before: always;
+                        /* Soccer-style substitution lines: one per sub, out↓ in↑,
+                           last name + number, no wasted vertical space. */
+                        .sub-lines {
+                            margin-top: 2px;
                         }
-                        .notes-section h2 {
-                            margin-bottom: 15px;
-                            border-bottom: 2px solid #333;
-                            padding-bottom: 10px;
+                        .sub-line {
+                            font-size: 8px;
+                            line-height: 1.25;
+                            color: #111;
+                            white-space: nowrap;
                         }
-                        .notes-area {
-                            border: 1px solid #ccc;
-                            min-height: 400px;
-                            padding: 15px;
-                            background: #fafafa;
-                        }
-                        .notes-lines {
-                            height: 350px;
-                            background-image: repeating-linear-gradient(
-                                transparent,
-                                transparent 29px,
-                                #ddd 29px,
-                                #ddd 30px
-                            );
-                        }
+                        .sub-line .out { color: #b91c1c; }
+                        .sub-line .in { color: #047857; }
+                        .sub-line .arrow { color: #555; padding: 0 1px; }
                         @media print {
-                            @page { margin: 0.35in; }
+                            @page { margin: 0.3in; }
                             body { padding: 0; }
-                            .rotation-grid { gap: 8px; }
+                            .rotation-grid { gap: 5px; }
                             .rotation-card { page-break-inside: avoid; }
                         }
                     </style>
                 </head>
                 <body>
-                    <div class="header">
-                        <h1>🏐 ${plan.name}</h1>
-                        <span class="subtitle">Rotation Strategy</span>
-                    </div>
-
-                    <div class="team-info">
-                        <div><strong>Visitor Team:</strong> ${document.getElementById('visitor-name').textContent}</div>
-                        <div><strong>Home Team:</strong> ${document.getElementById('home-name').textContent}</div>
-                        <div><strong>Date:</strong> ${new Date().toLocaleDateString()}</div>
+                    <div class="plan-meta">
+                        <span><strong>${plan.name}</strong></span>
+                        <span>${document.getElementById('visitor-name').textContent} (V) vs ${document.getElementById('home-name').textContent} (H)</span>
+                        <span>${new Date().toLocaleDateString()}</span>
                     </div>
 
                     <div class="rotation-grid">
                         ${plan.visitorRotations.map((rotation, idx) => {
-                            const subNotes = [];
-
-                            const visitorCells = [1, 6, 5, 2, 3, 4].map((pos) => {
-                                const player = rotation[pos - 1];
-                                const isSub = !!(player && player.isSubOverride);
-                                const isP1 = pos === 1;
-                                if (isSub) subNotes.push({ team: 'Visitor', jersey: player.subbedOutJersey, name: player.subbedOutName });
-                                const boxClass = isSub ? 'sub-needed' : (isP1 ? 'p1-visitor' : '');
-                                return `
-                                    <div class="position ${boxClass}">
-                                        <div class="pos-label">P${pos}</div>
-                                        ${player ? `
-                                            <div class="jersey">${player.jersey || player.name.substring(0, 2).toUpperCase()}</div>
-                                            <div class="name">${player.name}</div>
-                                            ${isSub ? '<div class="sub-badge">🔁 SUB</div>' : ''}
-                                        ` : '<div style="color: #999;">Empty</div>'}
-                                    </div>
-                                `;
-                            }).join('');
-
-                            const homeCells = [4, 3, 2, 5, 6, 1].map((pos) => {
-                                const player = plan.homeRotations[idx][pos - 1];
-                                const isSub = !!(player && player.isSubOverride);
-                                const isP1 = pos === 1;
-                                if (isSub) subNotes.push({ team: 'Home', jersey: player.subbedOutJersey, name: player.subbedOutName });
-                                const boxClass = isSub ? 'sub-needed' : (isP1 ? 'p1-home' : '');
-                                return `
-                                    <div class="position ${boxClass}">
-                                        <div class="pos-label">P${pos}</div>
-                                        ${player ? `
-                                            <div class="jersey">${player.jersey || player.name.substring(0, 2).toUpperCase()}</div>
-                                            <div class="name">${player.name}</div>
-                                            ${isSub ? '<div class="sub-badge">🔁 SUB</div>' : ''}
-                                        ` : '<div style="color: #999;">Empty</div>'}
-                                    </div>
-                                `;
-                            }).join('');
-
-                            const getLastNameForExport = (fullName) => {
+                            const subLines = [];
+                            const getLastName = (fullName) => {
                                 if (!fullName) return '';
                                 const parts = fullName.trim().split(/\s+/);
                                 return parts[parts.length - 1];
                             };
+                            const fmtPlayer = (name, jersey) => `${getLastName(name)}${jersey ? ' #' + jersey : ''}`;
 
-                            const subNotesHtml = subNotes.length > 0 ? `
-                                <div class="sub-notes">
-                                    <div class="sub-notes-title">🔁 Sub out before this rotation:</div>
-                                    ${subNotes.map(n => `<div class="sub-notes-line">${n.team}: ${n.jersey ? '#' + n.jersey + ' ' : ''}${getLastNameForExport(n.name)}</div>`).join('')}
-                                </div>
-                            ` : '';
+                            const buildCells = (rotArray, side) => {
+                                const layout = side === 'visitor' ? [1, 6, 5, 2, 3, 4] : [4, 3, 2, 5, 6, 1];
+                                return layout.map((pos) => {
+                                    const player = rotArray[pos - 1];
+                                    const isSub = !!(player && player.isSubOverride);
+                                    const isP1 = pos === 1;
+                                    if (isSub) {
+                                        // player = who's IN, subbedOut* = who's OUT
+                                        subLines.push({
+                                            side: side === 'visitor' ? 'V' : 'H',
+                                            out: fmtPlayer(player.subbedOutName, player.subbedOutJersey),
+                                            in: fmtPlayer(player.name, player.jersey)
+                                        });
+                                    }
+                                    const boxClass = isSub ? 'sub-needed' : (isP1 ? (side === 'visitor' ? 'p1-visitor' : 'p1-home') : '');
+                                    const roleLabel = player ? (player.jersey && isNaN(player.jersey) ? '' : (player.position || '')) : '';
+                                    return `
+                                        <div class="position ${boxClass}">
+                                            ${player ? `
+                                                <div class="jersey">${player.jersey || getLastName(player.name).substring(0, 3).toUpperCase()}</div>
+                                                ${roleLabel ? `<div class="role">${roleLabel}</div>` : ''}
+                                            ` : '<div class="role">—</div>'}
+                                        </div>
+                                    `;
+                                }).join('');
+                            };
 
-                            const whiteboardImg = whiteboardImages[idx]
-                                ? `<div class="rotation-whiteboard-label">Court Notes</div><img class="rotation-whiteboard-img" src="${whiteboardImages[idx]}" alt="Rotation ${idx + 1} court diagram">`
+                            const visitorCells = buildCells(rotation, 'visitor');
+                            const homeCells = buildCells(plan.homeRotations[idx], 'home');
+
+                            const subLinesHtml = subLines.length > 0
+                                ? `<div class="sub-lines">${subLines.map(s =>
+                                    `<div class="sub-line">${s.side} <span class="out">↓${s.out}</span> <span class="arrow">→</span> <span class="in">↑${s.in}</span></div>`
+                                  ).join('')}</div>`
                                 : '';
 
                             return `
                             <div class="rotation-card">
-                                <h3>Rotation ${idx + 1}</h3>
-                                <div class="court-section">
-                                    <h4>Visitor Team</h4>
-                                    <div class="court">${visitorCells}</div>
-                                </div>
-                                <div class="court-section">
-                                    <h4>Home Team</h4>
-                                    <div class="court">${homeCells}</div>
-                                </div>
-                                ${subNotesHtml}
-                                ${whiteboardImg}
+                                <div class="rotation-title">Rotation ${idx + 1}</div>
+                                <div class="court">${visitorCells}</div>
+                                <div class="court">${homeCells}</div>
+                                ${subLinesHtml}
                             </div>
                         `;
                         }).join('')}
                     </div>
-
-                    
                 </body>
                 </html>
                     `);
