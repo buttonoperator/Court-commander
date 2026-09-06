@@ -6771,6 +6771,23 @@
                 return;
             }
 
+            // Snapshot each rotation's mini court-diagram whiteboard now,
+            // while the live canvases are still on screen — the print window
+            // has no access to this app's DOM. A snapshot is only kept if
+            // the coach actually drew something on it; otherwise that
+            // rotation gets a blank writable box in the printout instead.
+            const whiteboardImages = [0, 1, 2, 3, 4, 5].map(idx => {
+                const strokes = (plan.rotationWhiteboards && plan.rotationWhiteboards[idx]) || [];
+                if (strokes.length === 0) return null;
+                const canvas = document.getElementById('rotation-whiteboard-' + idx);
+                if (!canvas || canvas.width === 0 || canvas.height === 0) return null;
+                try {
+                    return canvas.toDataURL('image/png');
+                } catch (e) {
+                    return null;
+                }
+            });
+
             const printWindow = window.open('', '_blank');
             const doc = printWindow.document;
             
@@ -6798,7 +6815,13 @@
                         .rotation-grid {
                             display: grid;
                             grid-template-columns: repeat(3, 1fr);
+                            grid-template-rows: 1fr 1fr;
                             gap: 6px;
+                            /* Two equal rows filling the printable page height
+                               so the lower 3 rotations always begin at the
+                               vertical midpoint — the sheet stays balanced no
+                               matter how many sub lines each card carries. */
+                            height: calc(100vh - 40px);
                         }
                         .rotation-card {
                             border: 1px solid #999;
@@ -6806,6 +6829,8 @@
                             padding: 5px;
                             page-break-inside: avoid;
                             overflow: hidden;
+                            display: flex;
+                            flex-direction: column;
                         }
                         .rotation-title {
                             text-align: center;
@@ -6813,6 +6838,7 @@
                             font-weight: bold;
                             text-decoration: underline;
                             margin-bottom: 4px;
+                            flex: 0 0 auto;
                         }
                         .court {
                             display: grid;
@@ -6821,6 +6847,7 @@
                             border: 1px solid #999;
                             padding: 2px;
                             margin-bottom: 3px;
+                            flex: 0 0 auto;
                         }
                         .position {
                             border: 1px solid #bbb;
@@ -6858,6 +6885,7 @@
                            last name + number, no wasted vertical space. */
                         .sub-lines {
                             margin-top: 2px;
+                            flex: 0 0 auto;
                         }
                         .sub-line {
                             font-size: 8px;
@@ -6868,10 +6896,51 @@
                         .sub-line .out { color: #b91c1c; }
                         .sub-line .in { color: #047857; }
                         .sub-line .arrow { color: #555; padding: 0 1px; }
+                        /* Whiteboard area fills whatever vertical space is
+                           left in the card. If the coach drew on this
+                           rotation's mini-board in the app, that image shows
+                           here; otherwise it's a blank faint-grid surface the
+                           coach can write on by hand after printing. */
+                        .wb {
+                            flex: 1 1 auto;
+                            min-height: 44px;
+                            margin-top: 3px;
+                            border: 1px solid #ccc;
+                            border-radius: 3px;
+                            overflow: hidden;
+                            position: relative;
+                            background-color: #fff;
+                            background-image:
+                                repeating-linear-gradient(0deg, transparent, transparent 11px, #eee 11px, #eee 12px),
+                                repeating-linear-gradient(90deg, transparent, transparent 11px, #f4f4f4 11px, #f4f4f4 12px);
+                        }
+                        .wb img {
+                            position: absolute;
+                            inset: 0;
+                            width: 100%;
+                            height: 100%;
+                            object-fit: contain;
+                        }
+                        .wb-label {
+                            position: absolute;
+                            top: 1px;
+                            left: 3px;
+                            font-size: 6px;
+                            color: #bbb;
+                            text-transform: uppercase;
+                            letter-spacing: 0.5px;
+                        }
                         @media print {
-                            @page { margin: 0.3in; }
+                            @page { margin: 0.3in; size: portrait; }
                             body { padding: 0; }
-                            .rotation-grid { gap: 5px; }
+                            .rotation-grid {
+                                gap: 5px;
+                                /* On paper, fill the full printable height so
+                                   the two rows are each exactly half a page —
+                                   keeps the sheet visually balanced. The meta
+                                   line above eats a little, hence the offset. */
+                                height: calc(100vh - 24px);
+                            }
                             .rotation-card { page-break-inside: avoid; }
                         }
                     </style>
@@ -6929,12 +6998,17 @@
                                   ).join('')}</div>`
                                 : '';
 
+                            const wbHtml = whiteboardImages[idx]
+                                ? `<div class="wb"><img src="${whiteboardImages[idx]}" alt="Rotation ${idx + 1} court notes"></div>`
+                                : `<div class="wb"><span class="wb-label">Notes</span></div>`;
+
                             return `
                             <div class="rotation-card">
                                 <div class="rotation-title">Rotation ${idx + 1}</div>
                                 <div class="court">${visitorCells}</div>
                                 <div class="court">${homeCells}</div>
                                 ${subLinesHtml}
+                                ${wbHtml}
                             </div>
                         `;
                         }).join('')}
