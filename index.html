@@ -9,7 +9,7 @@
          fetches this tag fresh (bypassing cache) on every app launch and
          reloads automatically if it doesn't match. Reloading does NOT clear
          localStorage, so saved rosters/history/rotations are unaffected. -->
-    <meta name="app-version" content="2026-09-07-1">
+    <meta name="app-version" content="2026-09-07-2">
     <!-- GitHub Pages doesn't allow custom HTTP cache headers, and iOS
          "Add to Home Screen" apps can cache more aggressively than a normal
          browser tab. These meta tags are a second, independent line of
@@ -478,32 +478,48 @@
             margin-top: 2px;
         }
 
+        /* Stacked, not inline. The rail is only ~130px wide, and the base
+           button rule makes buttons flex-grow — so Load and the delete "x"
+           ate the whole row and squeezed the name to zero width. The name
+           now gets its own full-width line and is actually readable. */
         .uc-rotation-row {
             display: flex;
-            align-items: center;
-            gap: 3px;
-            padding: 3px 4px;
+            flex-direction: column;
+            align-items: stretch;
+            gap: 4px;
+            padding: 5px;
             border: 1px solid var(--border-color);
-            border-radius: 5px;
+            border-radius: 6px;
             background: var(--button-bg);
         }
 
         .uc-rotation-row .uc-rotation-name {
-            flex: 1;
-            min-width: 0;
-            font-size: 9px;
+            font-size: 11px;
             font-weight: 700;
             color: var(--text-primary);
-            overflow: hidden;
-            text-overflow: ellipsis;
-            white-space: nowrap;
+            line-height: 1.25;
+            overflow-wrap: anywhere;
+        }
+
+        .uc-rotation-row .uc-rotation-actions {
+            display: flex;
+            align-items: stretch;
+            gap: 4px;
+        }
+
+        .uc-rotation-row .uc-rotation-actions .btn-load {
+            flex: 1 1 auto;
+        }
+
+        .uc-rotation-row .uc-rotation-actions .btn-delete {
+            flex: 0 0 26px;
         }
 
         .uc-rotation-row button {
-            padding: 3px 5px;
-            font-size: 9px;
+            padding: 4px 5px;
+            font-size: 10px;
             line-height: 1;
-            min-height: 22px;
+            min-height: 24px;
         }
 
         .uc-rotation-empty {
@@ -904,7 +920,7 @@
         }
 
         .uc-bench-half-label {
-            font-size: 9px;
+            font-size: 11px;
             font-weight: 800;
             text-transform: uppercase;
             letter-spacing: 0.4px;
@@ -914,7 +930,7 @@
         }
 
         .uc-bench-half-subs {
-            font-size: 9px;
+            font-size: 11px;
             text-align: center;
             padding: 2px 2px 4px;
             color: var(--text-secondary);
@@ -1751,6 +1767,15 @@
             width: 100%;
             height: 170px;
             touch-action: none;
+            /* Same graph-paper surface the print stylesheet gives .wb, so
+               what the coach draws on maps 1:1 to what comes out of the
+               printer. Supplied by CSS rather than painted into the canvas
+               so it is never captured in the exported bitmap. */
+            background-color: #fff;
+            background-image:
+                repeating-linear-gradient(0deg, transparent, transparent 11px, #eee 11px, #eee 12px),
+                repeating-linear-gradient(90deg, transparent, transparent 11px, #f4f4f4 11px, #f4f4f4 12px);
+            border-radius: 3px;
         }
 
         canvas.drawing-surface-focused {
@@ -3755,10 +3780,6 @@
         }
 
         // Kept for the auto-open at the start of a set.
-        function openRotationReadyModal() {
-            if (state.suppressRotationPrompt) return;
-            openRotationManager('manage');
-        }
 
         function closeRotationReadyModal() {
             document.getElementById('rotation-ready-modal').classList.remove('active');
@@ -4823,8 +4844,10 @@
             container.innerHTML = rotations.map((rot, idx) => `
                 <div class="uc-rotation-row">
                     <span class="uc-rotation-name" title="${escapeForAttr(rot.name)}">${rot.name}</span>
-                    <button class="btn-load set-lock-btn" onclick="applyRotation('${team}', ${idx})">Load</button>
-                    <button class="btn-delete" style="background: #6b7280;" onclick="deleteRotation('${team}', ${idx})" title="Delete this rotation">×</button>
+                    <div class="uc-rotation-actions">
+                        <button class="btn-load set-lock-btn" onclick="applyRotation('${team}', ${idx})">Load</button>
+                        <button class="btn-delete" style="background: #6b7280;" onclick="deleteRotation('${team}', ${idx})" title="Delete this rotation">×</button>
+                    </div>
                 </div>
             `).join('');
 
@@ -5580,17 +5603,6 @@
             `;
         }
 
-        function toggleStatsMain() {
-            state.statsEnabled = !state.statsEnabled;
-            const toggle = document.getElementById('stats-toggle-main');
-            const toggleSettings = document.getElementById('stats-toggle');
-            const status = document.getElementById('stats-status');
-            
-            toggle.classList.toggle('active');
-            toggleSettings.classList.toggle('active');
-            
-            status.textContent = state.statsEnabled ? 'Enabled' : 'Disabled';
-        }
 
         /* ═══════════════════════════════════════════════════════════════════
            MATCH FORMAT — a persisted setting, not a prompt
@@ -5701,16 +5713,6 @@
             saveToLocalStorage();
         }
 
-        function toggleStats() {
-            state.statsEnabled = !state.statsEnabled;
-            const toggle = document.getElementById('stats-toggle');
-            const toggleMain = document.getElementById('stats-toggle-main');
-            const status = document.getElementById('stats-status');
-            
-            toggle.classList.toggle('active');
-            if (toggleMain) toggleMain.classList.toggle('active');
-            if (status) status.textContent = state.statsEnabled ? 'Enabled' : 'Disabled';
-        }
 
         /* ═══════════════════════════════════════════════════════════════════
            VISITOR GENERIC ROLE MANAGEMENT
@@ -7178,61 +7180,24 @@
            (and its listeners) is simply discarded with the old DOM.
            ═══════════════════════════════════════════════════════════════════ */
 
+        /**
+         * Intentionally draws nothing.
+         *
+         * This used to paint a volleyball court onto each mini whiteboard —
+         * boundary, net, attack lines, zone dividers, VISITOR/HOME labels.
+         * Those lines were computed from the on-screen canvas dimensions and
+         * baked into the canvas, but the export renders strokes onto a fresh
+         * transparent canvas and lets print CSS supply the surface. So the
+         * court the coach drew against existed on screen and vanished on
+         * paper, at a different aspect ratio — which is what made exported
+         * plays look stretched and displaced relative to their markings.
+         *
+         * The surface is now a plain graph grid supplied by CSS in BOTH
+         * places (.rotation-mini-canvas on screen, .wb in print), so nothing
+         * is baked into the bitmap and screen and paper match exactly.
+         */
         function drawMiniCourtBackground(ctx, canvas) {
-            const w = canvas.width, h = canvas.height;
-            if (w === 0 || h === 0) return;
-
-            const margin = Math.min(w, h) * 0.08;
-            const courtW = w - margin * 2;
-            const courtH = h - margin * 2;
-            if (courtW <= 0 || courtH <= 0) return;
-
-            const netX = margin + courtW / 2;
-            const attackOffset = (courtW / 2) / 3;
-
-            ctx.save();
-
-            // Outer court boundary
-            ctx.strokeStyle = '#c7c7c7';
-            ctx.lineWidth = 1;
-            ctx.strokeRect(margin, margin, courtW, courtH);
-
-            // Net — vertical center line, bolder
-            ctx.strokeStyle = '#9ca3af';
-            ctx.lineWidth = 1.5;
-            ctx.beginPath();
-            ctx.moveTo(netX, margin);
-            ctx.lineTo(netX, margin + courtH);
-            ctx.stroke();
-
-            // Attack (10-ft) lines, one per side
-            ctx.strokeStyle = '#d8d8d8';
-            ctx.lineWidth = 1;
-            ctx.beginPath();
-            ctx.moveTo(netX - attackOffset, margin);
-            ctx.lineTo(netX - attackOffset, margin + courtH);
-            ctx.moveTo(netX + attackOffset, margin);
-            ctx.lineTo(netX + attackOffset, margin + courtH);
-            ctx.stroke();
-
-            // Zone dividers — split each side into 3 rows (6 zones per side)
-            const row1 = margin + courtH / 3;
-            const row2 = margin + (courtH / 3) * 2;
-            ctx.beginPath();
-            ctx.moveTo(margin, row1);
-            ctx.lineTo(margin + courtW, row1);
-            ctx.moveTo(margin, row2);
-            ctx.lineTo(margin + courtW, row2);
-            ctx.stroke();
-
-            // Faint side labels
-            ctx.fillStyle = '#b5b5b5';
-            ctx.font = '9px Arial, sans-serif';
-            ctx.textAlign = 'center';
-            ctx.fillText('VISITOR', netX - courtW / 4, margin + 10);
-            ctx.fillText('HOME', netX + courtW / 4, margin + 10);
-
-            ctx.restore();
+            /* no-op — see comment above */
         }
 
         function redrawRotationMiniCanvas(rotIdx) {
