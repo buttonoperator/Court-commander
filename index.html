@@ -9,7 +9,7 @@
          fetches this tag fresh (bypassing cache) on every app launch and
          reloads automatically if it doesn't match. Reloading does NOT clear
          localStorage, so saved rosters/history/rotations are unaffected. -->
-    <meta name="app-version" content="2026-09-06-2">
+    <meta name="app-version" content="2026-09-06-3">
     <!-- GitHub Pages doesn't allow custom HTTP cache headers, and iOS
          "Add to Home Screen" apps can cache more aggressively than a normal
          browser tab. These meta tags are a second, independent line of
@@ -352,6 +352,52 @@
             opacity: 0.4;
             filter: grayscale(0.6);
             cursor: not-allowed;
+        }
+
+        /* Saved rotations, listed directly beneath "Save Rotation" in the
+           bench rail. Replaces the old Load button + popup: the coach can see
+           what's saved without opening anything, and load it in one tap. */
+        .uc-rotation-list {
+            display: flex;
+            flex-direction: column;
+            gap: 3px;
+            margin-top: 2px;
+        }
+
+        .uc-rotation-row {
+            display: flex;
+            align-items: center;
+            gap: 3px;
+            padding: 3px 4px;
+            border: 1px solid var(--border-color);
+            border-radius: 5px;
+            background: var(--button-bg);
+        }
+
+        .uc-rotation-row .uc-rotation-name {
+            flex: 1;
+            min-width: 0;
+            font-size: 9px;
+            font-weight: 700;
+            color: var(--text-primary);
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+
+        .uc-rotation-row button {
+            padding: 3px 5px;
+            font-size: 9px;
+            line-height: 1;
+            min-height: 22px;
+        }
+
+        .uc-rotation-empty {
+            font-size: 8px;
+            color: var(--text-secondary);
+            text-align: center;
+            font-style: italic;
+            padding: 2px;
         }
 
         .btn-roster { background: #8b5cf6; flex: 1; }
@@ -1709,8 +1755,8 @@
                             <div class="bench" id="visitor-bench"></div>
                             <div class="uc-bench-rotation-controls">
                                 <button class="btn-roster game-lock-btn" onclick="openRoster('visitor')">Roster</button>
-                                <button class="btn-load game-lock-btn" onclick="loadRotation('visitor')">Load</button>
-                                <button class="btn-save game-lock-btn" onclick="saveRotation('visitor')">Save</button>
+                                <button class="btn-save set-lock-btn" onclick="saveRotation('visitor')">Save Rotation</button>
+                                <div class="uc-rotation-list" id="visitor-rotation-list"></div>
                             </div>
                         </div>
                         <div class="uc-bench-half">
@@ -1719,8 +1765,8 @@
                             <div class="bench" id="home-bench"></div>
                             <div class="uc-bench-rotation-controls">
                                 <button class="btn-roster game-lock-btn" onclick="openRoster('home')">Roster</button>
-                                <button class="btn-load game-lock-btn" onclick="loadRotation('home')">Load</button>
-                                <button class="btn-save game-lock-btn" onclick="saveRotation('home')">Save</button>
+                                <button class="btn-save set-lock-btn" onclick="saveRotation('home')">Save Rotation</button>
+                                <div class="uc-rotation-list" id="home-rotation-list"></div>
                             </div>
                         </div>
                     </div>
@@ -1879,6 +1925,28 @@
             <div class="modal-content-scroll">
                 <h2 id="load-rotation-title" style="margin-bottom: 15px;">Load Rotation</h2>
                 <div id="load-rotation-list"></div>
+            </div>
+        </div>
+    </div>
+
+    <div class="modal" id="rotation-ready-modal">
+        <div class="modal-content">
+            <button class="modal-close" onclick="closeRotationReadyModal()">×</button>
+            <div class="modal-content-scroll">
+                <h2 style="margin-bottom: 12px;">Is your rotation ready?</h2>
+                <p style="color: var(--text-secondary); font-size: 14px; line-height: 1.6; margin-bottom: 18px;">
+                    Click save if you would like to save this rotation to the team.
+                    Build another rotation, save both and use either one at the start of your next set.
+                </p>
+                <button style="background: #10b981; width: 100%; margin-bottom: 8px;" onclick="saveRotationFromPrompt('home')">&#128190; Save Home Rotation</button>
+                <button style="background: #10b981; width: 100%; margin-bottom: 8px;" onclick="saveRotationFromPrompt('visitor')">&#128190; Save Visitor Rotation</button>
+                <button style="background: #6b7280; width: 100%;" onclick="closeRotationReadyModal()">Continue Without Saving</button>
+                <div style="display: flex; align-items: center; gap: 12px; margin-top: 16px;">
+                    <div class="toggle-switch" id="rotation-prompt-toggle" onclick="toggleRotationPrompt()">
+                        <div class="toggle-slider"></div>
+                    </div>
+                    <span style="color: var(--text-secondary); font-size: 12px;">Don't ask again at the start of a set</span>
+                </div>
             </div>
         </div>
     </div>
@@ -2325,6 +2393,9 @@
             // those locks let rosters be edited between sets, which is how
             // orphaned court players got created mid-match.
             matchInProgress: false,
+            // Whether the "is your rotation ready?" prompt appears at the
+            // start of each set. On by default; dismissible from the prompt.
+            suppressRotationPrompt: false,
             liberoRules: {
                 enabled: false,
                 allowServing: false,
@@ -3093,6 +3164,7 @@
             updateVisitorDisplay();
             updateWhiteboardDisplay();
             updateRotationList('home');
+            updateRotationList('visitor');
             refreshTeamSelector('home');
             refreshTeamSelector('visitor');
             // Tampa Prep branding is the default look — but never override a
@@ -3282,13 +3354,46 @@
          * explain why nothing happened — a truly disabled button is silent,
          * which reads as a broken app on a phone.
          */
+        const SET_LOCK_MESSAGE =
+            'Locked while a set is live.\n\n' +
+            'Rotations can be saved and loaded before a set starts and between ' +
+            'sets — not during one, since swapping the lineup mid-set would ' +
+            'desync the rotation order and substitution counts.\n\n' +
+            'Finish the set (Start New Set in Settings) to unlock.';
+
+        /**
+         * True, with a warning, if a set is currently live. Rotation save/load
+         * gates on THIS rather than on the match, because the coach explicitly
+         * needs to swap rotations between sets.
+         */
+        function blockedByLiveSet() {
+            if (!state.gameStarted) return false;
+            alert(SET_LOCK_MESSAGE);
+            return true;
+        }
+
+        /**
+         * Applies both lock tiers:
+         *   .game-lock-btn — locked for the whole match (roster edits)
+         *   .set-lock-btn  — locked only while a set is live (rotations)
+         * Both dim rather than disable, so a tap still explains itself.
+         */
         function refreshGameLocks() {
-            const locked = !!state.matchInProgress;
+            const matchLocked = !!state.matchInProgress;
             document.querySelectorAll('.game-lock-btn').forEach(btn => {
-                btn.classList.toggle('is-game-locked', locked);
-                btn.setAttribute('aria-disabled', locked ? 'true' : 'false');
-                btn.title = locked
-                    ? 'Locked during a match — end the match to change rosters or rotations'
+                btn.classList.toggle('is-game-locked', matchLocked);
+                btn.setAttribute('aria-disabled', matchLocked ? 'true' : 'false');
+                btn.title = matchLocked
+                    ? 'Locked during a match — end the match to change rosters'
+                    : '';
+            });
+
+            const setLocked = !!state.gameStarted;
+            document.querySelectorAll('.set-lock-btn').forEach(btn => {
+                btn.classList.toggle('is-game-locked', setLocked);
+                btn.setAttribute('aria-disabled', setLocked ? 'true' : 'false');
+                btn.title = setLocked
+                    ? 'Locked while a set is live — available between sets'
                     : '';
             });
         }
@@ -3312,9 +3417,44 @@
             updateGameChoiceDisplay();
             refreshTeamSelector('home');
             refreshTeamSelector('visitor');
+            updateBench('home');
+            updateBench('visitor');
             refreshGameLocks();
             refreshMatchFormatUI();
             saveToLocalStorage();
+            openRotationReadyModal();
+        }
+
+        /* ===================================================================
+           ROTATION READY PROMPT - shown as each set starts
+           =================================================================== */
+
+        function openRotationReadyModal() {
+            if (state.suppressRotationPrompt) return;
+            const toggle = document.getElementById('rotation-prompt-toggle');
+            if (toggle) toggle.classList.remove('active');
+            document.getElementById('rotation-ready-modal').classList.add('active');
+        }
+
+        function closeRotationReadyModal() {
+            document.getElementById('rotation-ready-modal').classList.remove('active');
+        }
+
+        function toggleRotationPrompt() {
+            state.suppressRotationPrompt = !state.suppressRotationPrompt;
+            const toggle = document.getElementById('rotation-prompt-toggle');
+            if (toggle) toggle.classList.toggle('active', state.suppressRotationPrompt);
+            saveToLocalStorage();
+        }
+
+        /**
+         * Saves from the start-of-set prompt. Deliberately bypasses the set
+         * lock: the set has just been armed, so gameStarted is already true,
+         * and this lineup is precisely the one worth keeping.
+         */
+        function saveRotationFromPrompt(team) {
+            performSaveRotation(team);
+            closeRotationReadyModal();
         }
 
         function simulateRotation() {
@@ -4066,9 +4206,24 @@
         }
 
         function saveRotation(team) {
-            if (blockedByLiveMatch()) return;
+            if (blockedByLiveSet()) return;
+            performSaveRotation(team);
+        }
+
+        /**
+         * The actual save. Split out so the "is your rotation ready?" prompt
+         * shown just after a set starts can still save — at that moment
+         * gameStarted is already true, but capturing the lineup you just
+         * started with is exactly the point of that prompt.
+         */
+        function performSaveRotation(team) {
             const positions = state[team].positions;
-            
+
+            if (positions.filter(p => p !== null).length < 6) {
+                alert('Set all six court positions before saving a rotation.');
+                return;
+            }
+
             const name = prompt('Enter rotation name:');
             if (!name || name.trim() === '') return;
             
@@ -4093,11 +4248,12 @@
             
             state[team].rotations.push(rotation);
             updateRotationList(team);
+            saveToLocalStorage();
             console.log('Saved rotation: ' + name);
         }
 
         function loadRotation(team) {
-            if (blockedByLiveMatch()) return;
+            if (blockedByLiveSet()) return;
             
             if (state[team].rotations.length === 0) {
                 alert('No saved rotations!\n\nSave a rotation first using the "Save" button.');
@@ -4150,11 +4306,42 @@
             if (loadRotationModalTeam === team) {
                 renderLoadRotationModalList();
             }
+            renderRotationRail(team);
+        }
+
+        /**
+         * Renders a team's saved rotations directly into the bench rail,
+         * beneath its Save Rotation button — name on the left, Load on the
+         * right, and a delete affordance. Load dims while a set is live.
+         */
+        function renderRotationRail(team) {
+            const container = document.getElementById(`${team}-rotation-list`);
+            if (!container) return;
+
+            const rotations = state[team].rotations || [];
+            if (rotations.length === 0) {
+                container.innerHTML = '<div class="uc-rotation-empty">No saved rotations</div>';
+                return;
+            }
+
+            container.innerHTML = rotations.map((rot, idx) => `
+                <div class="uc-rotation-row">
+                    <span class="uc-rotation-name" title="${escapeForAttr(rot.name)}">${rot.name}</span>
+                    <button class="btn-load set-lock-btn" onclick="applyRotation('${team}', ${idx})">Load</button>
+                    <button class="btn-delete" style="background: #6b7280;" onclick="deleteRotation('${team}', ${idx})" title="Delete this rotation">×</button>
+                </div>
+            `).join('');
+
+            // Newly rendered Load buttons need the current lock state applied.
+            refreshGameLocks();
         }
 
 
         function applyRotation(team, idx) {
+            if (blockedByLiveSet()) return;
+
             const rotation = state[team].rotations[idx];
+            if (!rotation) return;
             
             if (team === 'visitor' && !state.visitorRosterEnabled) {
                 state[team].positions = rotation.positions.map(p => {
@@ -4191,6 +4378,7 @@
             
             state[team].rotations.splice(idx, 1);
             updateRotationList(team);
+            saveToLocalStorage();
             console.log(`Deleted rotation: ${rotationName}`);
         }
 
@@ -4213,9 +4401,17 @@
                 return;
             }
             
-            // Player exists — swap/remove is only offered before the game
-            // starts. Once started, substitutions go through the dedicated
-            // SUB button instead, which correctly tracks substitution counts.
+            // Once a set is live, tapping anywhere on an occupied court card
+            // opens the substitution modal — not just the 10px SUB button.
+            // Tapping the player is the natural gesture on a phone, and it
+            // used to do nothing at all, which reads as "substitutions are
+            // broken" even though the SUB button beside it worked.
+            if (state.gameStarted) {
+                openSubstitution(team, positionIdx, event);
+                return;
+            }
+
+            // Before the set starts, tapping a filled slot swaps or clears it.
             if (!state.gameStarted) {
                 const action = confirm('Current: ' + player.name + '\n\nClick OK to swap this player\nClick Cancel to remove from court');
                 if (action) {
@@ -5123,7 +5319,10 @@
             
             updateCourt('home');
             updateCourt('visitor');
+            updateBench('home');
+            updateBench('visitor');
             updateGameChoiceDisplay();
+            refreshGameLocks();
 
             const homeTeamName = document.getElementById('home-name').textContent;
             const visitorTeamName = document.getElementById('visitor-name').textContent;
