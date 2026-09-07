@@ -9,7 +9,7 @@
          fetches this tag fresh (bypassing cache) on every app launch and
          reloads automatically if it doesn't match. Reloading does NOT clear
          localStorage, so saved rosters/history/rotations are unaffected. -->
-    <meta name="app-version" content="2026-09-06-1">
+    <meta name="app-version" content="2026-09-06-2">
     <!-- GitHub Pages doesn't allow custom HTTP cache headers, and iOS
          "Add to Home Screen" apps can cache more aggressively than a normal
          browser tab. These meta tags are a second, independent line of
@@ -280,6 +280,58 @@
         .btn-score { background: #10b981; font-size: 18px; padding: 8px 16px; }
         .btn-undo { background: #f59e0b; }
         .btn-sub { margin-top: 4px; padding: 3px 10px; font-size: 10px; background: #f97316; }
+        /* Substitution picker rows. Deliberately large: this gets tapped on
+           a phone, courtside, mid-match. */
+        .sub-choice {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            width: 100%;
+            min-height: 56px;
+            padding: 10px 14px;
+            margin-bottom: 8px;
+            border: 2px solid var(--border-color);
+            border-radius: 10px;
+            background: var(--button-bg);
+            color: var(--text-primary);
+            text-align: left;
+            cursor: pointer;
+        }
+
+        .sub-choice:active { transform: scale(0.98); }
+
+        .sub-choice .sub-choice-jersey {
+            font-family: 'Oswald', -apple-system, 'Arial Black', sans-serif;
+            font-size: 24px;
+            font-weight: 700;
+            flex: 0 0 46px;
+            text-align: center;
+        }
+
+        .sub-choice .sub-choice-name {
+            font-size: 15px;
+            font-weight: 600;
+            flex: 1;
+            min-width: 0;
+        }
+
+        .sub-choice .sub-choice-meta {
+            font-size: 11px;
+            color: var(--text-secondary);
+            font-weight: 500;
+        }
+
+        .sub-out-banner {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding: 10px 14px;
+            margin-bottom: 14px;
+            border-radius: 10px;
+            border: 2px solid #b91c1c;
+            background: rgba(185, 28, 28, 0.12);
+        }
+
         .match-format-btn {
             background: var(--button-bg);
             color: var(--text-primary);
@@ -1827,6 +1879,18 @@
             <div class="modal-content-scroll">
                 <h2 id="load-rotation-title" style="margin-bottom: 15px;">Load Rotation</h2>
                 <div id="load-rotation-list"></div>
+            </div>
+        </div>
+    </div>
+
+    <div class="modal" id="substitution-modal">
+        <div class="modal-content">
+            <button class="modal-close" onclick="closeSubstitutionModal()">×</button>
+            <div class="modal-content-scroll">
+                <h2 id="sub-modal-title" style="margin-bottom: 4px;">Substitution</h2>
+                <p id="sub-modal-subtitle" style="color: var(--text-secondary); font-size: 13px; margin-bottom: 14px;"></p>
+                <div id="sub-modal-bench"></div>
+                <button style="background: #6b7280; width: 100%; margin-top: 14px;" onclick="closeSubstitutionModal()">Cancel</button>
             </div>
         </div>
     </div>
@@ -4291,20 +4355,112 @@
                 alert('No bench players available to substitute in.\n\nEveryone on the roster is already on the court. Add more players to the roster (via the Roster button) to have subs available.');
                 return;
             }
+
+            // NFHS: 12 team substitutions per set. The counter used to run
+            // straight past zero into negative numbers.
+            if (state[team].subsRemaining <= 0) {
+                alert('No substitutions left this set.\n\nNFHS allows 12 team substitutions per set, and all 12 have been used.');
+                return;
+            }
             
             substitutionInProgress = {
                 team: team,
                 positionIdx: positionIdx,
                 currentPlayer: currentPlayer
             };
-            
-            document.querySelectorAll(`#${team}-bench .bench-player`).forEach(player => {
-                player.classList.add('selected');
-                player.style.cursor = 'pointer';
-                player.style.transform = 'scale(1.05)';
+
+            // The old flow just tinted the bench cards green and waited for a
+            // second tap. On a phone, courtside, that read as "nothing
+            // happened": the tint is nearly invisible on a dark theme, the
+            // bench sits in a separately-scrolling rail that may not even be
+            // showing the right half, there was no instruction, and no way to
+            // back out. Coaches reported substitutions as simply broken.
+            // A modal makes the state unmistakable and cancellable.
+            openSubstitutionModal(team, positionIdx, currentPlayer, benchPlayers);
+        }
+
+        /**
+         * Escapes a roster id for embedding inside a single-quoted onclick
+         * attribute. Ids are numbers for bank rosters and strings for generic
+         * opponents, so this always yields a quoted string the handler can
+         * match loosely. JSON.stringify is NOT usable here — it emits double
+         * quotes, which terminate the surrounding onclick="..." attribute and
+         * produce a SyntaxError the moment the button is tapped.
+         */
+        function escapeForAttr(value) {
+            return String(value)
+                .replace(/&/g, '&amp;')
+                .replace(/'/g, '&#39;')
+                .replace(/"/g, '&quot;')
+                .replace(/</g, '&lt;')
+                .replace(/>/g, '&gt;');
+        }
+
+        function openSubstitutionModal(team, positionIdx, currentPlayer, benchPlayers) {
+            const teamLabel = team === 'home' ? 'Home' : 'Visitor';
+            const posNumber = positionIdx + 1;
+
+            document.getElementById('sub-modal-title').textContent = `${teamLabel} Substitution — Position ${posNumber}`;
+            document.getElementById('sub-modal-subtitle').textContent =
+                `${state[team].subsRemaining} of 12 substitutions remaining this set. Tap the player coming in.`;
+
+            const outJersey = currentPlayer.jersey || currentPlayer.name.substring(0, 2).toUpperCase();
+            const rows = benchPlayers.map(player => {
+                const jersey = player.jersey || player.name.substring(0, 2).toUpperCase();
+                const meta = [player.position, player.grade].filter(Boolean).join(' · ');
+                return `
+                    <button class="sub-choice" onclick="confirmSubstitutionChoice('${escapeForAttr(player.id)}')">
+                        <span class="sub-choice-jersey" style="color: var(--team${team === 'home' ? '2' : '1'}-color);">${jersey}</span>
+                        <span class="sub-choice-name">${player.name}${meta ? `<br><span class="sub-choice-meta">${meta}</span>` : ''}</span>
+                        <span style="color: #047857; font-size: 20px; font-weight: 700;">↑</span>
+                    </button>
+                `;
+            }).join('');
+
+            document.getElementById('sub-modal-bench').innerHTML = `
+                <div class="sub-out-banner">
+                    <span style="color: #b91c1c; font-size: 20px; font-weight: 700;">↓</span>
+                    <span class="sub-choice-jersey" style="color: var(--text-primary);">${outJersey}</span>
+                    <span class="sub-choice-name">${currentPlayer.name}<br><span class="sub-choice-meta">Coming out</span></span>
+                </div>
+                ${rows}
+            `;
+
+            document.getElementById('substitution-modal').classList.add('active');
+        }
+
+        function closeSubstitutionModal() {
+            document.getElementById('substitution-modal').classList.remove('active');
+            // Disarm, so a stray bench tap later can't trigger a phantom sub.
+            substitutionInProgress = null;
+            document.querySelectorAll('.bench-player').forEach(player => {
+                player.classList.remove('selected');
+                player.style.transform = '';
             });
-            
-            
+        }
+
+        /**
+         * playerId arrives as a string because roster ids can be either
+         * numbers (bank rosters) or strings (generic opponents), and
+         * embedding a raw number in an onclick attribute breaks for the
+         * latter. Match loosely against both forms.
+         */
+        function confirmSubstitutionChoice(playerId) {
+            if (!substitutionInProgress) {
+                closeSubstitutionModal();
+                return;
+            }
+            const team = substitutionInProgress.team;
+            const player = state[team].roster.find(p => String(p.id) === String(playerId));
+            if (!player) {
+                alert('That player could not be found on the roster. Close and try again.');
+                return;
+            }
+
+            const positionIdx = substitutionInProgress.positionIdx;
+            substitutionInProgress = null;
+            document.getElementById('substitution-modal').classList.remove('active');
+            makeSubstitution(team, positionIdx, player.id);
         }
 
         function selectBenchPlayer(team, playerId, event) {
@@ -7121,15 +7277,33 @@
             // into a small centered strip — making drawn boxes look nothing
             // like the blank writable boxes. Redrawing from the stored
             // normalized strokes keeps every box visually unified.
-            const PRINT_WB_W = 300;
-            const PRINT_WB_H = 420;
+            // The offscreen canvas is built at the SOURCE board's aspect
+            // ratio, not a fixed portrait 300x420. Forcing a fixed tall
+            // canvas made getStrokeFitTransform letterbox every drawing:
+            // the app's mini-board is wide, so a mark that filled it got
+            // squeezed into a thin horizontal band floating in the middle of
+            // a tall box, with big transparent margins baked into the PNG.
+            // Matching the source aspect means zero letterboxing here, and
+            // CSS `object-fit: contain` then scales the drawing as large as
+            // the print box allows — so it lands on paper looking like what
+            // the coach actually drew.
+            const PRINT_WB_LONG_EDGE = 640;
             const whiteboardImages = [0, 1, 2, 3, 4, 5].map(idx => {
                 const strokes = (plan.rotationWhiteboards && plan.rotationWhiteboards[idx]) || [];
                 if (strokes.length === 0) return null;
                 try {
+                    const src = strokes.find(st => st.sourceWidth > 0 && st.sourceHeight > 0);
+                    const aspect = src ? (src.sourceWidth / src.sourceHeight) : (300 / 420);
+
                     const off = document.createElement('canvas');
-                    off.width = PRINT_WB_W;
-                    off.height = PRINT_WB_H;
+                    if (aspect >= 1) {
+                        off.width = PRINT_WB_LONG_EDGE;
+                        off.height = Math.max(1, Math.round(PRINT_WB_LONG_EDGE / aspect));
+                    } else {
+                        off.height = PRINT_WB_LONG_EDGE;
+                        off.width = Math.max(1, Math.round(PRINT_WB_LONG_EDGE * aspect));
+                    }
+
                     const octx = off.getContext('2d');
                     if (!octx) return null;
                     // Transparent background so the print box's own faint grid
@@ -7239,6 +7413,13 @@
                         .sub-lines {
                             margin-top: 2px;
                             flex: 0 0 auto;
+                            /* Reserved height for two sub lines. Without this,
+                               a rotation carrying subs pushed its whiteboard
+                               shorter than its neighbours', so the six boxes
+                               came out visibly different sizes across the
+                               sheet. Now every card reserves the same strip
+                               and all six whiteboards match. */
+                            min-height: 21px;
                         }
                         .sub-line {
                             font-size: 8px;
