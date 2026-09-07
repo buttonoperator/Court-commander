@@ -9,7 +9,7 @@
          fetches this tag fresh (bypassing cache) on every app launch and
          reloads automatically if it doesn't match. Reloading does NOT clear
          localStorage, so saved rosters/history/rotations are unaffected. -->
-    <meta name="app-version" content="2026-09-06-3">
+    <meta name="app-version" content="2026-09-06-4">
     <!-- GitHub Pages doesn't allow custom HTTP cache headers, and iOS
          "Add to Home Screen" apps can cache more aggressively than a normal
          browser tab. These meta tags are a second, independent line of
@@ -1754,7 +1754,7 @@
                             <div class="uc-bench-half-subs">Subs: <span id="visitor-subs-remaining" style="color: var(--team1-color);">12</span></div>
                             <div class="bench" id="visitor-bench"></div>
                             <div class="uc-bench-rotation-controls">
-                                <button class="btn-roster game-lock-btn" onclick="openRoster('visitor')">Roster</button>
+                                <button class="btn-roster" onclick="openRoster('visitor')">Roster</button>
                                 <button class="btn-save set-lock-btn" onclick="saveRotation('visitor')">Save Rotation</button>
                                 <div class="uc-rotation-list" id="visitor-rotation-list"></div>
                             </div>
@@ -1764,7 +1764,7 @@
                             <div class="uc-bench-half-subs">Subs: <span id="home-subs-remaining" style="color: var(--team2-color);">12</span></div>
                             <div class="bench" id="home-bench"></div>
                             <div class="uc-bench-rotation-controls">
-                                <button class="btn-roster game-lock-btn" onclick="openRoster('home')">Roster</button>
+                                <button class="btn-roster" onclick="openRoster('home')">Roster</button>
                                 <button class="btn-save set-lock-btn" onclick="saveRotation('home')">Save Rotation</button>
                                 <div class="uc-rotation-list" id="home-rotation-list"></div>
                             </div>
@@ -1979,6 +1979,15 @@
             <div class="modal-content-scroll">
             <div class="modal-header" id="roster-modal-header">Manage Roster</div>
 
+            <div id="roster-readonly-banner" style="display: none; padding: 12px 14px; margin-bottom: 15px; border-radius: 10px; border: 2px solid #f59e0b; background: rgba(245, 158, 11, 0.12);">
+                <strong style="color: #f59e0b; font-size: 14px;">&#128274; View only &mdash; match in progress</strong>
+                <p style="color: var(--text-secondary); font-size: 12px; margin-top: 5px; line-height: 1.5;">
+                    You can check the roster, jersey numbers and positions here at any time.
+                    Editing is locked until the match ends, because changing a roster mid-match
+                    can strand players on court with no legal way to substitute them out.
+                </p>
+            </div>
+
             <div id="roster-team-bank-section" style="margin-bottom: 15px; padding: 15px; background: var(--button-bg); border-radius: 10px; border: 1px solid var(--border-color);">
                 <h3 id="roster-team-bank-heading" style="margin-bottom: 10px; font-size: 15px;">Saved Teams</h3>
                 <div id="roster-team-bank-list" style="margin-bottom: 10px;"></div>
@@ -1989,7 +1998,7 @@
                 <h3 style="margin-bottom: 8px; font-size: 15px;">Backup &amp; Sharing</h3>
                 <div style="display: flex; gap: 8px;">
                     <button style="background: #3b82f6; flex: 1; font-size: 13px;" onclick="exportRosterOrBank()">⬇️ Export</button>
-                    <button style="background: #f59e0b; flex: 1; font-size: 13px;" onclick="document.getElementById('roster-import-input').click()">⬆️ Import</button>
+                    <button id="roster-import-btn" style="background: #f59e0b; flex: 1; font-size: 13px;" onclick="document.getElementById('roster-import-input').click()">⬆️ Import</button>
                 </div>
                 <input type="file" id="roster-import-input" accept="application/json" style="display: none;" onchange="importRosterOrTeams(this)">
                 <p id="roster-file-tools-hint" style="color: var(--text-secondary); font-size: 11px; margin-top: 8px; line-height: 1.5;"></p>
@@ -3008,6 +3017,33 @@
             };
         }
 
+        /**
+         * Repaints every scoreboard element that is normally written only as
+         * a side effect of the action that changed it — score, substitution
+         * counters, sets won.
+         *
+         * These live in the DOM as plain textContent, updated inline by
+         * addScore()/makeSubstitution()/startNewSet(). Nothing re-derived them
+         * from state, so a page reload mid-match restored the STATE correctly
+         * (score 7-4, 10 subs left) while the screen still read 0-0 and 12
+         * subs. The next tap then snapped the display to the true value —
+         * the score appearing to jump, and subs appearing to vanish. Called
+         * on load, and after any restore, so screen and state can't diverge.
+         */
+        function syncScoreboardFromState() {
+            const set = (id, value) => {
+                const el = document.getElementById(id);
+                if (el) el.textContent = value;
+            };
+
+            set('home-score', state.home.score);
+            set('visitor-score', state.visitor.score);
+            set('home-subs-remaining', state.home.subsRemaining);
+            set('visitor-subs-remaining', state.visitor.subsRemaining);
+
+            updateSetsWonDisplay();
+        }
+
         function updateAutosaveIndicator(savedAt, failed) {
             const el = document.getElementById('autosave-status');
             if (!el) return;
@@ -3146,7 +3182,11 @@
                 // Brand-new install, or a save from before team-switching
                 // existed — load whichever team is marked default.
                 loadTeamFromBank('home', state.defaultHomeTeamId, true);
-            } else if (state.currentHomeTeamId === varsityId && varsityWasRefreshed) {
+            } else if (state.currentHomeTeamId === varsityId && varsityWasRefreshed &&
+                       !state.matchInProgress) {
+                // Deferred while a match is live — reloading the roster
+                // clears the court, which would wipe the lineup mid-match.
+                // It re-applies on the next load after the match ends.
                 // The coach currently has Varsity loaded, and its official
                 // roster just got corrected — refresh the live court to
                 // match, clearing it so it can't reference a graduated player.
@@ -3180,7 +3220,7 @@
             updateMarkerTabPlacement();
             updateWhiteboardPlacement();
             updateSettingsButtonPlacement();
-            updateSetsWonDisplay();
+            syncScoreboardFromState();
             updateGameChoiceDisplay();
             refreshGameLocks();
             refreshMatchFormatUI();
@@ -3643,8 +3683,55 @@
             positions[5] = temp;
         }
 
+        /**
+         * True while the roster modal must be look-but-don't-touch: the coach
+         * still needs to check numbers and positions courtside mid-match, but
+         * every mutating control is disabled.
+         */
+        function isRosterReadOnly() {
+            return !!state.matchInProgress;
+        }
+
+        function guardRosterEdit() {
+            if (!isRosterReadOnly()) return false;
+            alert('Roster editing is locked while a match is in progress.\n\n' +
+                  'You can still view the roster. Use "End Match" to unlock editing.');
+            return true;
+        }
+
+        /**
+         * Applies read-only mode to every mutating control in the roster
+         * modal. Inputs are genuinely disabled here (unlike the dimmed bench
+         * buttons) because a disabled text field is self-explanatory, and the
+         * banner above already states the reason.
+         */
+        function applyRosterReadOnlyState() {
+            const readOnly = isRosterReadOnly();
+
+            const banner = document.getElementById('roster-readonly-banner');
+            if (banner) banner.style.display = readOnly ? '' : 'none';
+
+            [
+                'player-name', 'player-jersey', 'player-position', 'player-libero',
+                'roster-form-submit-btn', 'roster-team-bank-save-btn'
+            ].forEach(id => {
+                const el = document.getElementById(id);
+                if (!el) return;
+                el.disabled = readOnly;
+                el.classList.toggle('is-game-locked', readOnly);
+            });
+
+            // Import mutates the bank; Export is read-only and stays available.
+            const importBtn = document.getElementById('roster-import-btn');
+            if (importBtn) {
+                importBtn.disabled = readOnly;
+                importBtn.classList.toggle('is-game-locked', readOnly);
+            }
+        }
+
         function openRoster(team) {
-            if (blockedByLiveMatch()) return;
+            // Deliberately NOT blocked during a match — the coach needs to
+            // look up a jersey number courtside. Editing is what's locked.
             state.currentTeam = team;
             cancelEditPlayer();
             document.getElementById('roster-modal').classList.add('active');
@@ -3664,6 +3751,7 @@
 
             updateTeamBankList(team);
             updateRosterList();
+            applyRosterReadOnlyState();
         }
 
         function exportSingleVisitorRosterOnly() {
@@ -3682,6 +3770,7 @@
         let editingPlayerId = null;
 
         function startEditPlayer(id) {
+            if (guardRosterEdit()) return;
             const player = state[state.currentTeam].roster.find(p => p.id === id);
             if (!player) return;
             editingPlayerId = id;
@@ -3704,6 +3793,7 @@
         }
 
         function addPlayer() {
+            if (guardRosterEdit()) return;
             const name = document.getElementById('player-name').value.trim();
             if (!name) {
                 alert('Player name is required');
@@ -3751,15 +3841,19 @@
                         ${player.position ? `- ${player.position}` : ''}
                         ${player.libero ? ' (Libero)' : ''}
                     </div>
+                    ${isRosterReadOnly() ? '' : `
                     <div style="display: flex; gap: 6px;">
                         <button class="btn-rotation" style="background: #3b82f6;" onclick="startEditPlayer(${player.id})">Edit</button>
                         <button class="btn-delete" onclick="deletePlayer(${player.id})">Delete</button>
-                    </div>
+                    </div>`}
                 </div>
             `).join('');
+
+            applyRosterReadOnlyState();
         }
 
         function deletePlayer(id) {
+            if (guardRosterEdit()) return;
             state[state.currentTeam].roster = state[state.currentTeam].roster.filter(p => p.id !== id);
             if (editingPlayerId === id) cancelEditPlayer();
             updateRosterList();
@@ -3792,6 +3886,7 @@
         }
 
         function saveTeamToBank(team) {
+            if (guardRosterEdit()) return;
             if (state[team].roster.length === 0) {
                 alert(`Add players to the ${team} roster below before saving it to ${getBankLabel(team)}.`);
                 return;
@@ -3830,7 +3925,11 @@
         // confirm — a coach-initiated Load still always asks first.
         function loadTeamFromBank(team, teamId, skipConfirm) {
             if (state.matchInProgress) {
-                alert(MATCH_LOCK_MESSAGE);
+                // Coach-initiated loads get the explanation. System loads
+                // (first-run bootstrap, automatic roster refresh) happen
+                // during init(), where a lock warning on page load would be
+                // baffling — they just defer until the match ends.
+                if (!skipConfirm) alert(MATCH_LOCK_MESSAGE);
                 refreshTeamSelector(team);
                 return;
             }
@@ -3893,6 +3992,7 @@
         }
 
         function deleteTeamFromBank(team, teamId) {
+            if (guardRosterEdit()) return;
             const bank = getBankArray(team);
             const entry = bank.find(t => t.id === teamId);
             if (!entry) return;
@@ -3918,6 +4018,7 @@
         }
 
         function renameTeamInBank(team, teamId) {
+            if (guardRosterEdit()) return;
             const bank = getBankArray(team);
             const entry = bank.find(t => t.id === teamId);
             if (!entry) return;
@@ -4178,6 +4279,7 @@
         // roster modal is currently open, regardless of which team the file
         // was originally exported from.
         function importRosterOrTeams(input) {
+            if (guardRosterEdit()) { input.value = ''; return; }
             const file = input.files && input.files[0];
             if (!file) return;
 
