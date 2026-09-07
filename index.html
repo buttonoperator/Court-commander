@@ -9,7 +9,7 @@
          fetches this tag fresh (bypassing cache) on every app launch and
          reloads automatically if it doesn't match. Reloading does NOT clear
          localStorage, so saved rosters/history/rotations are unaffected. -->
-    <meta name="app-version" content="2026-09-06-4">
+    <meta name="app-version" content="2026-09-06-5">
     <!-- GitHub Pages doesn't allow custom HTTP cache headers, and iOS
          "Add to Home Screen" apps can cache more aggressively than a normal
          browser tab. These meta tags are a second, independent line of
@@ -279,7 +279,30 @@
         .btn-export { background: #10b981; }
         .btn-score { background: #10b981; font-size: 18px; padding: 8px 16px; }
         .btn-undo { background: #f59e0b; }
-        .btn-sub { margin-top: 4px; padding: 3px 10px; font-size: 10px; background: #f97316; }
+        .btn-sub {
+            margin-top: 5px;
+            padding: 5px 12px;
+            font-size: 11px;
+            font-weight: 800;
+            letter-spacing: 0.6px;
+            background: #f97316;
+            border-radius: 999px;
+            transition: box-shadow 0.15s, transform 0.15s, background 0.15s;
+        }
+
+        /* Lit while this position's substitution is open, so it's obvious
+           which player is being subbed — the button used to look identical
+           whether or not it had registered the tap. */
+        .btn-sub.is-active {
+            background: #fb923c;
+            box-shadow: 0 0 0 3px rgba(249, 115, 22, 0.55), 0 0 14px rgba(249, 115, 22, 0.8);
+            transform: scale(1.08);
+        }
+
+        .position.sub-arming {
+            box-shadow: inset 0 0 0 2px #f97316;
+            background: rgba(249, 115, 22, 0.12);
+        }
         /* Substitution picker rows. Deliberately large: this gets tapped on
            a phone, courtside, mid-match. */
         .sub-choice {
@@ -352,6 +375,60 @@
             opacity: 0.4;
             filter: grayscale(0.6);
             cursor: not-allowed;
+        }
+
+        .rotation-mgr-tab {
+            background: var(--button-bg);
+            color: var(--text-primary);
+            border: 2px solid var(--border-color);
+        }
+
+        .rotation-mgr-tab.active {
+            background: #8b5cf6;
+            color: #fff;
+            border-color: #8b5cf6;
+        }
+
+        .rotation-mgr-row {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding: 10px 12px;
+            margin-bottom: 8px;
+            border: 2px solid var(--border-color);
+            border-radius: 10px;
+            background: var(--button-bg);
+        }
+
+        .rotation-mgr-row .rotation-mgr-name {
+            flex: 1;
+            min-width: 0;
+            font-size: 14px;
+            font-weight: 700;
+            color: var(--text-primary);
+        }
+
+        .rotation-mgr-row .rotation-mgr-lineup {
+            display: block;
+            font-size: 11px;
+            font-weight: 500;
+            color: var(--text-secondary);
+            margin-top: 2px;
+        }
+
+        .rotation-mgr-chip {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            min-width: 30px;
+            padding: 4px 7px;
+            border-radius: 6px;
+            font-family: 'Oswald', -apple-system, 'Arial Black', sans-serif;
+            font-size: 15px;
+            font-weight: 700;
+            background: var(--card-bg);
+            border: 1px solid var(--border-color);
+            color: var(--text-primary);
         }
 
         /* Saved rotations, listed directly beneath "Save Rotation" in the
@@ -1828,6 +1905,7 @@
                                             <div id="uc-game-choice-controls" style="display: flex; align-items: center; justify-content: center; gap: 8px; width: 100%; flex-wrap: wrap; padding: 2px 0;">
                                                 <button id="uc-start-game-btn" style="background: #10b981; font-size: 12px; padding: 7px 12px;" onclick="startGame()">▶️ Start Match</button>
                                                 <button id="uc-simulate-btn" style="background: #8b5cf6; font-size: 12px; padding: 7px 12px;" onclick="simulateRotation()">🔁 Simulate Rotation</button>
+                                                <button id="uc-rotations-btn" class="set-lock-btn" style="background: #8b5cf6; font-size: 12px; padding: 7px 12px;" onclick="openRotationManager('manage')">🔄 Rotations</button>
                                                 <button id="uc-end-match-btn" style="background: #0ea5e9; font-size: 12px; padding: 7px 12px; display: none;" onclick="endMatch()">🏁 End Match</button>
                                             </div>
                                         </div>
@@ -1933,19 +2011,31 @@
         <div class="modal-content">
             <button class="modal-close" onclick="closeRotationReadyModal()">×</button>
             <div class="modal-content-scroll">
-                <h2 style="margin-bottom: 12px;">Is your rotation ready?</h2>
-                <p style="color: var(--text-secondary); font-size: 14px; line-height: 1.6; margin-bottom: 18px;">
-                    Click save if you would like to save this rotation to the team.
-                    Build another rotation, save both and use either one at the start of your next set.
-                </p>
-                <button style="background: #10b981; width: 100%; margin-bottom: 8px;" onclick="saveRotationFromPrompt('home')">&#128190; Save Home Rotation</button>
-                <button style="background: #10b981; width: 100%; margin-bottom: 8px;" onclick="saveRotationFromPrompt('visitor')">&#128190; Save Visitor Rotation</button>
-                <button style="background: #6b7280; width: 100%;" onclick="closeRotationReadyModal()">Continue Without Saving</button>
+                <h2 id="rotation-mgr-title" style="margin-bottom: 8px;">Rotations</h2>
+                <p id="rotation-mgr-subtitle" style="color: var(--text-secondary); font-size: 14px; line-height: 1.6; margin-bottom: 14px;"></p>
+
+                <div style="display: flex; gap: 8px; margin-bottom: 14px;">
+                    <button id="rotation-mgr-tab-home" class="rotation-mgr-tab" style="flex: 1;" onclick="setRotationManagerTeam('home')">Home</button>
+                    <button id="rotation-mgr-tab-visitor" class="rotation-mgr-tab" style="flex: 1;" onclick="setRotationManagerTeam('visitor')">Visitor</button>
+                </div>
+
+                <div style="padding: 12px; border-radius: 10px; border: 1px solid var(--border-color); background: var(--button-bg); margin-bottom: 12px;">
+                    <div style="font-size: 11px; text-transform: uppercase; letter-spacing: 0.5px; color: var(--text-secondary); margin-bottom: 8px;">Lineup on court now</div>
+                    <div id="rotation-mgr-current" style="display: flex; flex-wrap: wrap; gap: 6px;"></div>
+                </div>
+
+                <button id="rotation-mgr-save-btn" style="background: #10b981; width: 100%; margin-bottom: 14px;" onclick="saveRotationFromManager()">&#128190; Save This Lineup as a New Rotation</button>
+
+                <div style="font-size: 11px; text-transform: uppercase; letter-spacing: 0.5px; color: var(--text-secondary); margin-bottom: 8px;">Saved rotations</div>
+                <div id="rotation-mgr-list" style="margin-bottom: 14px;"></div>
+
+                <div id="rotation-mgr-actions"></div>
+
                 <div style="display: flex; align-items: center; gap: 12px; margin-top: 16px;">
                     <div class="toggle-switch" id="rotation-prompt-toggle" onclick="toggleRotationPrompt()">
                         <div class="toggle-slider"></div>
                     </div>
-                    <span style="color: var(--text-secondary); font-size: 12px;">Don't ask again at the start of a set</span>
+                    <span style="color: var(--text-secondary); font-size: 12px;">Don't open this automatically at the start of a set</span>
                 </div>
             </div>
         </div>
@@ -3289,6 +3379,9 @@
                     </div>
                 `;
             }).join('');
+
+            // The re-render just destroyed any lit SUB button; restore it.
+            refreshSubHighlight();
         }
 
         function updateBench(team) {
@@ -3438,11 +3531,23 @@
             });
         }
 
-        function startGame() {
+        function startGame(opts) {
             const homeError = validateTeamReady('home', 'Home');
             const visitorError = validateTeamReady('visitor', 'Visitor');
             if (homeError || visitorError) {
                 alert('Cannot start the game yet:\n\n' + [homeError, visitorError].filter(Boolean).join('\n\n'));
+                return;
+            }
+
+            // From Set 2 onward, offer the rotation chooser BEFORE committing.
+            // This is the step that was missing: after saving Rotation 1 there
+            // was no point at which the coach could pick a different rotation
+            // for the next set — the lineup locked the instant the set began.
+            // Gating here means the choice happens while the court is still
+            // editable.
+            const isLaterSet = state.matchInProgress && state.setHistory.length > 0;
+            if (isLaterSet && !(opts && opts.rotationChosen) && !state.suppressRotationPrompt) {
+                openRotationManager('chooser');
                 return;
             }
 
@@ -3462,22 +3567,39 @@
             refreshGameLocks();
             refreshMatchFormatUI();
             saveToLocalStorage();
-            openRotationReadyModal();
+            // Set 1 gets the "is your rotation ready?" nudge. Later sets
+            // already went through the chooser above, so don't nag twice.
+            if (state.setHistory.length === 0) openRotationReadyModal();
         }
 
         /* ===================================================================
            ROTATION READY PROMPT - shown as each set starts
            =================================================================== */
 
+        // 'manage'  — browsing/building rotations, opened by the Rotations button
+        // 'chooser' — gating the start of a set, so the coach picks which
+        //             rotation to play before the lineup locks
+        let rotationManagerMode = 'manage';
+        let rotationManagerTeam = 'home';
+
+        function openRotationManager(mode) {
+            rotationManagerMode = mode || 'manage';
+            rotationManagerTeam = 'home';
+            const toggle = document.getElementById('rotation-prompt-toggle');
+            if (toggle) toggle.classList.toggle('active', !!state.suppressRotationPrompt);
+            renderRotationManager();
+            document.getElementById('rotation-ready-modal').classList.add('active');
+        }
+
+        // Kept for the auto-open at the start of a set.
         function openRotationReadyModal() {
             if (state.suppressRotationPrompt) return;
-            const toggle = document.getElementById('rotation-prompt-toggle');
-            if (toggle) toggle.classList.remove('active');
-            document.getElementById('rotation-ready-modal').classList.add('active');
+            openRotationManager('manage');
         }
 
         function closeRotationReadyModal() {
             document.getElementById('rotation-ready-modal').classList.remove('active');
+            rotationManagerMode = 'manage';
         }
 
         function toggleRotationPrompt() {
@@ -3487,14 +3609,102 @@
             saveToLocalStorage();
         }
 
+        function setRotationManagerTeam(team) {
+            rotationManagerTeam = team;
+            renderRotationManager();
+        }
+
+        function rotationLineupSummary(positions) {
+            return (positions || [])
+                .map(p => (p ? (p.jersey || p.name.substring(0, 2).toUpperCase()) : '—'))
+                .join('  ');
+        }
+
+        function renderRotationManager() {
+            const team = rotationManagerTeam;
+            const isChooser = rotationManagerMode === 'chooser';
+            const nextSet = state.setHistory.length + 1;
+
+            document.getElementById('rotation-mgr-title').textContent =
+                isChooser ? `Choose your rotation for Set ${nextSet}` : 'Is your rotation ready?';
+
+            document.getElementById('rotation-mgr-subtitle').textContent = isChooser
+                ? `Load one of your saved rotations, or rearrange the court and save it as a new one. Whichever lineup is on court when you start is the one you'll play Set ${nextSet} with.`
+                : 'Click save if you would like to save this rotation to the team. Build another rotation, save both and use either one at the start of your next set.';
+
+            ['home', 'visitor'].forEach(t => {
+                const tab = document.getElementById(`rotation-mgr-tab-${t}`);
+                if (tab) tab.classList.toggle('active', t === team);
+            });
+
+            document.getElementById('rotation-mgr-current').innerHTML =
+                (state[team].positions || []).map(p => `
+                    <span class="rotation-mgr-chip">${p ? (p.jersey || p.name.substring(0, 2).toUpperCase()) : '—'}</span>
+                `).join('');
+
+            const rotations = state[team].rotations || [];
+            const list = document.getElementById('rotation-mgr-list');
+            if (rotations.length === 0) {
+                list.innerHTML = `<p style="color: var(--text-secondary); font-size: 13px; font-style: italic;">
+                    None saved yet for this team. Set the court the way you want it, then use the button above —
+                    save two or three and you can pick between them at the start of every set.</p>`;
+            } else {
+                list.innerHTML = rotations.map((rot, idx) => `
+                    <div class="rotation-mgr-row">
+                        <span class="rotation-mgr-name">${rot.name}
+                            <span class="rotation-mgr-lineup">${rotationLineupSummary(rot.positions)}</span>
+                        </span>
+                        <button style="background: #3b82f6;" onclick="loadRotationFromManager(${idx})">${isChooser ? 'Load &amp; Start' : 'Load'}</button>
+                        <button class="btn-delete" style="background: #6b7280;" onclick="deleteRotationFromManager(${idx})" title="Delete">×</button>
+                    </div>
+                `).join('');
+            }
+
+            document.getElementById('rotation-mgr-actions').innerHTML = isChooser
+                ? `<button style="background: #10b981; width: 100%; margin-bottom: 8px;" onclick="startSetWithCurrentLineup()">▶️ Start Set ${nextSet} With This Lineup</button>
+                   <button style="background: #6b7280; width: 100%;" onclick="closeRotationReadyModal()">Cancel — let me rearrange the court</button>`
+                : `<button style="background: #6b7280; width: 100%;" onclick="closeRotationReadyModal()">Close</button>`;
+        }
+
         /**
-         * Saves from the start-of-set prompt. Deliberately bypasses the set
-         * lock: the set has just been armed, so gameStarted is already true,
-         * and this lineup is precisely the one worth keeping.
+         * Saves the lineup currently on court. Bypasses the set lock on
+         * purpose: during the start-of-set prompt gameStarted is already
+         * true, and that lineup is exactly the one worth keeping.
          */
-        function saveRotationFromPrompt(team) {
-            performSaveRotation(team);
+        function saveRotationFromManager() {
+            performSaveRotation(rotationManagerTeam);
+            renderRotationManager();
+        }
+
+        function deleteRotationFromManager(idx) {
+            deleteRotation(rotationManagerTeam, idx);
+            renderRotationManager();
+        }
+
+        /**
+         * In chooser mode this loads the rotation and immediately starts the
+         * set. In manage mode it just loads it onto the court — which only
+         * works between sets, since applyRotation refuses during a live one.
+         */
+        function loadRotationFromManager(idx) {
+            const team = rotationManagerTeam;
+            const wasChooser = rotationManagerMode === 'chooser';
+
+            if (wasChooser) {
+                // gameStarted is false here (we gated before starting), so
+                // applyRotation's set lock lets this through.
+                applyRotation(team, idx);
+                startSetWithCurrentLineup();
+                return;
+            }
+
+            applyRotation(team, idx);
+            renderRotationManager();
+        }
+
+        function startSetWithCurrentLineup() {
             closeRotationReadyModal();
+            startGame({ rotationChosen: true });
         }
 
         function simulateRotation() {
@@ -4694,6 +4904,27 @@
                 .replace(/>/g, '&gt;');
         }
 
+        /**
+         * Lights the SUB button (and outlines the card) for whichever court
+         * position currently has a substitution open. Re-applied after any
+         * updateCourt() re-render, since that rebuilds the buttons.
+         */
+        function refreshSubHighlight() {
+            document.querySelectorAll('.btn-sub.is-active').forEach(b => b.classList.remove('is-active'));
+            document.querySelectorAll('.position.sub-arming').forEach(p => p.classList.remove('sub-arming'));
+
+            if (!substitutionInProgress) return;
+
+            const court = document.getElementById(`${substitutionInProgress.team}-court`);
+            if (!court) return;
+            const cell = court.querySelector(`.position[data-position-index="${substitutionInProgress.positionIdx}"]`);
+            if (!cell) return;
+
+            cell.classList.add('sub-arming');
+            const btn = cell.querySelector('.btn-sub');
+            if (btn) btn.classList.add('is-active');
+        }
+
         function openSubstitutionModal(team, positionIdx, currentPlayer, benchPlayers) {
             const teamLabel = team === 'home' ? 'Home' : 'Visitor';
             const posNumber = positionIdx + 1;
@@ -4725,6 +4956,7 @@
             `;
 
             document.getElementById('substitution-modal').classList.add('active');
+            refreshSubHighlight();
         }
 
         function closeSubstitutionModal() {
@@ -4735,6 +4967,7 @@
                 player.classList.remove('selected');
                 player.style.transform = '';
             });
+            refreshSubHighlight();
         }
 
         /**
@@ -4759,6 +4992,7 @@
             substitutionInProgress = null;
             document.getElementById('substitution-modal').classList.remove('active');
             makeSubstitution(team, positionIdx, player.id);
+            refreshSubHighlight();
         }
 
         function selectBenchPlayer(team, playerId, event) {
