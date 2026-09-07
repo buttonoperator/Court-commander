@@ -9,7 +9,7 @@
          fetches this tag fresh (bypassing cache) on every app launch and
          reloads automatically if it doesn't match. Reloading does NOT clear
          localStorage, so saved rosters/history/rotations are unaffected. -->
-    <meta name="app-version" content="2026-09-06-5">
+    <meta name="app-version" content="2026-09-06-6">
     <!-- GitHub Pages doesn't allow custom HTTP cache headers, and iOS
          "Add to Home Screen" apps can cache more aggressively than a normal
          browser tab. These meta tags are a second, independent line of
@@ -2007,6 +2007,25 @@
         </div>
     </div>
 
+    <div class="modal" id="resume-match-modal">
+        <div class="modal-content">
+            <div class="modal-content-scroll">
+                <h2 style="margin-bottom: 8px;">Resume saved match?</h2>
+                <p style="color: var(--text-secondary); font-size: 13px; line-height: 1.6; margin-bottom: 14px;">
+                    A match was still in progress when this page was last open. Everything below was saved automatically.
+                </p>
+
+                <div id="resume-match-details" style="padding: 12px 14px; border-radius: 10px; border: 1px solid var(--border-color); background: var(--button-bg); margin-bottom: 16px;"></div>
+
+                <button style="background: #10b981; width: 100%; margin-bottom: 8px;" onclick="resumeSavedMatch()">▶️ Resume Match</button>
+                <button style="background: #ef4444; width: 100%;" onclick="discardSavedMatchAndStartNew()">🆕 Start a New Match</button>
+                <p style="color: var(--text-secondary); font-size: 11px; margin-top: 10px; line-height: 1.5; font-style: italic;">
+                    Starting new clears the score, stats and set history. Your rosters, saved rotations and team selections are kept either way.
+                </p>
+            </div>
+        </div>
+    </div>
+
     <div class="modal" id="rotation-ready-modal">
         <div class="modal-content">
             <button class="modal-close" onclick="closeRotationReadyModal()">×</button>
@@ -3097,6 +3116,9 @@
         // ============================================
         const STORAGE_KEY = 'courtCommanderState_v1';
 
+        // When the restored save was written, used by the resume prompt.
+        let lastLoadedSavedAt = null;
+
         function getPersistableState() {
             return {
                 state: state,
@@ -3204,6 +3226,7 @@
                 if (payload.theme) {
                     document.body.className = payload.theme;
                 }
+                lastLoadedSavedAt = payload.savedAt || null;
                 updateAutosaveIndicator(payload.savedAt, false);
                 return true;
             } catch (e) {
@@ -3252,6 +3275,89 @@
             if (!confirmAction('Erase all saved data from this browser? This cannot be undone. Download a backup first if you want to keep it.')) return;
             localStorage.removeItem(STORAGE_KEY);
             location.reload();
+        }
+
+        /* ===================================================================
+           RESUME PROMPT - shown on load when a match was still in progress
+           =================================================================== */
+
+        function formatSavedAgo(iso) {
+            if (!iso) return 'moments ago';
+            const then = new Date(iso).getTime();
+            if (isNaN(then)) return 'moments ago';
+            const mins = Math.floor((Date.now() - then) / 60000);
+            if (mins < 1) return 'less than a minute ago';
+            if (mins === 1) return '1 minute ago';
+            if (mins < 60) return `${mins} minutes ago`;
+            const hrs = Math.floor(mins / 60);
+            if (hrs === 1) return 'about an hour ago';
+            if (hrs < 24) return `about ${hrs} hours ago`;
+            const days = Math.floor(hrs / 24);
+            return days === 1 ? 'yesterday' : `${days} days ago`;
+        }
+
+        function courtSummary(team) {
+            const filled = (state[team].positions || []).filter(p => p);
+            if (filled.length === 0) return 'no lineup set';
+            return filled.map(p => '#' + (p.jersey || '?')).join(' ');
+        }
+
+        /**
+         * Blocks the board until the coach explicitly resumes or discards.
+         * Autosave already restores everything silently; this exists so a
+         * stale match from last week can't be mistaken for tonight's, and so
+         * the coach can see at a glance that nothing was lost.
+         */
+        function openResumeMatchModal() {
+            const homeName = document.getElementById('home-name').textContent;
+            const visitorName = document.getElementById('visitor-name').textContent;
+            const setsWonHome = state.setHistory.filter(s => s.homeScore > s.visitorScore).length;
+            const setsWonVisitor = state.setHistory.filter(s => s.visitorScore > s.homeScore).length;
+            const setNumber = state.setHistory.length + 1;
+            const live = state.gameStarted;
+
+            const row = (label, value) => `
+                <div style="display: flex; justify-content: space-between; gap: 12px; font-size: 12px; line-height: 1.9;">
+                    <span style="color: var(--text-secondary);">${label}</span>
+                    <span style="color: var(--text-primary); font-weight: 600; text-align: right;">${value}</span>
+                </div>`;
+
+            document.getElementById('resume-match-details').innerHTML = `
+                <div style="font-size: 15px; font-weight: 700; color: var(--text-primary); margin-bottom: 8px;">
+                    ${homeName} vs ${visitorName}
+                </div>
+                ${row('Sets won', `${setsWonHome} – ${setsWonVisitor} (best of ${state.matchFormat})`)}
+                ${row(live ? `Set ${setNumber} (in progress)` : `Next up`,
+                      live ? `${state.home.score} – ${state.visitor.score}` : `Set ${setNumber}, not yet started`)}
+                ${row('Subs remaining', `${state.home.subsRemaining} home / ${state.visitor.subsRemaining} visitor`)}
+                ${row('Home on court', courtSummary('home'))}
+                ${row('Visitor on court', courtSummary('visitor'))}
+                ${row('Saved rotations', `${(state.home.rotations || []).length} home / ${(state.visitor.rotations || []).length} visitor`)}
+                ${row('Last saved', formatSavedAgo(lastLoadedSavedAt))}
+            `;
+
+            document.getElementById('resume-match-modal').classList.add('active');
+        }
+
+        function resumeSavedMatch() {
+            document.getElementById('resume-match-modal').classList.remove('active');
+            // Nothing to rebuild — init() already restored and repainted
+            // everything. This just unblocks the board.
+            syncScoreboardFromState();
+            updateGameChoiceDisplay();
+            refreshGameLocks();
+        }
+
+        function discardSavedMatchAndStartNew() {
+            if (!confirmAction('Discard the saved match and start fresh?\n\nThe score, stats and set history will be cleared. Rosters, saved rotations and team selections are kept.')) return;
+
+            const hadData = state.setHistory.length > 0 || state.home.score > 0 || state.visitor.score > 0;
+            if (hadData && confirmAction('Save it to Match History first?')) {
+                archiveCurrentMatch();
+            }
+
+            document.getElementById('resume-match-modal').classList.remove('active');
+            clearLiveMatchState();
         }
 
         function init() {
@@ -3314,6 +3420,11 @@
             updateGameChoiceDisplay();
             refreshGameLocks();
             refreshMatchFormatUI();
+
+            // A match was still running when this page last closed — ask
+            // before letting the coach touch anything, so a stale match
+            // can't be mistaken for the current one.
+            if (state.matchInProgress) openResumeMatchModal();
 
             // Autosave: periodic + on tab hide/close (covers iPad Safari,
             // where 'beforeunload' is unreliable)
@@ -3773,6 +3884,7 @@
             
             updateCourt('home');
             updateCourt('visitor');
+            saveToLocalStorage();
 
             pendingPointEvent = {
                 id: Date.now() + Math.random(),
@@ -3818,6 +3930,7 @@
             state.matchTimeline.push(pendingPointEvent);
             pendingPointEvent = null;
             closeStatsModal();
+            saveToLocalStorage();
         }
 
         function saveHistory(team) {
@@ -5071,6 +5184,10 @@
             state[team].positions[positionIdx] = newPlayer;
             updateCourt(team);
             updateBench(team);
+            // Persist straight away rather than waiting for the 2s autosave
+            // tick — a substitution is the single most expensive thing to
+            // have to reconstruct from memory after a crash.
+            saveToLocalStorage();
         }
 
         function showStatsModal() {
