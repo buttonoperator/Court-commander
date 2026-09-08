@@ -9,7 +9,7 @@
          fetches this tag fresh (bypassing cache) on every app launch and
          reloads automatically if it doesn't match. Reloading does NOT clear
          localStorage, so saved rosters/history/rotations are unaffected. -->
-    <meta name="app-version" content="2026-09-08-1">
+    <meta name="app-version" content="2026-09-08-2">
     <!-- GitHub Pages doesn't allow custom HTTP cache headers, and iOS
          "Add to Home Screen" apps can cache more aggressively than a normal
          browser tab. These meta tags are a second, independent line of
@@ -410,6 +410,18 @@
             background: rgba(185, 28, 28, 0.12);
         }
 
+        .venue-setting-btn {
+            background: var(--button-bg);
+            color: var(--text-primary);
+            border: 2px solid var(--border-color);
+        }
+
+        .venue-setting-btn.active {
+            background: #fbbf24;
+            color: #0f172a;
+            border-color: #fbbf24;
+        }
+
         .match-format-btn {
             background: var(--button-bg);
             color: var(--text-primary);
@@ -430,6 +442,29 @@
             opacity: 0.4;
             filter: grayscale(0.6);
             cursor: not-allowed;
+        }
+
+        /* HOME / AWAY marker beside each court header's team name. Distinct
+           from the jersey colours, which identify the TEAM — this identifies
+           which side of the venue they are. */
+        .venue-badge {
+            flex: 0 0 auto;
+            margin-left: auto;
+            padding: 3px 9px;
+            border-radius: 999px;
+            font-family: 'Oswald', -apple-system, 'Arial Black', sans-serif;
+            font-size: 11px;
+            font-weight: 700;
+            letter-spacing: 1px;
+            color: #0f172a;
+            background: #fbbf24;
+            border: 1px solid rgba(0, 0, 0, 0.35);
+        }
+
+        .venue-badge.is-away {
+            color: #f8fafc;
+            background: #475569;
+            border-color: rgba(255, 255, 255, 0.35);
         }
 
         .coin-toss-step {
@@ -1975,7 +2010,7 @@
                          Roster/Load/Save controls, merged into the same box. -->
                     <div class="uc-bench-rail">
                         <div class="uc-bench-half" id="visitor-bench-section">
-                            <div class="uc-bench-half-label" style="background: var(--team1-color);">Visitor Bench</div>
+                            <div class="uc-bench-half-label" style="background: var(--team1-color);">Opponent Bench</div>
                             <div class="uc-bench-half-subs">Subs: <span id="visitor-subs-remaining" style="color: var(--team1-color);">12</span></div>
                             <div class="bench" id="visitor-bench"></div>
                             <div class="uc-bench-rotation-controls">
@@ -1985,7 +2020,7 @@
                             </div>
                         </div>
                         <div class="uc-bench-half">
-                            <div class="uc-bench-half-label" style="background: var(--team2-color);">Home Bench</div>
+                            <div class="uc-bench-half-label" style="background: var(--team2-color);">Tampa Prep Bench</div>
                             <div class="uc-bench-half-subs">Subs: <span id="home-subs-remaining" style="color: var(--team2-color);">12</span></div>
                             <div class="bench" id="home-bench"></div>
                             <div class="uc-bench-rotation-controls">
@@ -2012,7 +2047,8 @@
                                         <option value="">— Select opponent —</option>
                                     </select>
                                     <input type="text" id="visitor-generic-name-input" class="uc-team-header-select blink-invite" style="display: none; flex: 0 0 120px;" placeholder="Team name" oninput="updateGenericVisitorName(this.value)" title="Rename this generic opponent">
-                                    <h2 class="team-name" id="visitor-name" style="display: none;">Visitor Team</h2>
+                                    <h2 class="team-name" id="visitor-name" style="display: none;">Opponent</h2>
+                                    <span class="venue-badge" id="visitor-venue-badge" style="display: none;"></span>
                                 </div>
 
                                 <div class="uc-court-area">
@@ -2073,7 +2109,8 @@
                                     <svg class="team-jersey-icon" viewBox="0 0 100 100" style="width: 24px; height: 24px; flex-shrink: 0;">
                                         <path d="M35,8 L45,0 Q50,8 55,0 L65,8 L88,18 L100,40 L82,50 L75,44 L75,98 L25,98 L25,44 L18,50 L0,40 L12,18 Z" fill="white" stroke="oklch(0.25 0.01 90)" stroke-width="2.5" stroke-linejoin="round"/>
                                     </svg>
-                                    <h2 class="team-name" id="home-name" style="font-size: 15px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">Home Team</h2>
+                                    <h2 class="team-name" id="home-name" style="font-size: 15px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">Tampa Prep</h2>
+                                    <span class="venue-badge" id="home-venue-badge" style="display: none;"></span>
                                 </div>
                             </div>
                         </div>
@@ -2115,7 +2152,7 @@
                     </div>
                     
                     <div style="margin-top: 30px; padding-top: 20px; border-top: 2px solid var(--border-color);">
-                        <h3 style="color: var(--text-primary); margin-bottom: 15px;">Visitor Team Statistics</h3>
+                        <h3 style="color: var(--text-primary); margin-bottom: 15px;">Opponent Team Statistics</h3>
                         <div id="visitor-stats-section">
                             <div style="background: var(--button-bg); padding: 15px; border-radius: 8px; border: 1px solid var(--border-color);">
                                 <div style="display: flex; justify-content: space-between; align-items: center;">
@@ -2173,6 +2210,26 @@
         </div>
     </div>
 
+    <div class="modal" id="venue-modal">
+        <div class="modal-content">
+            <div class="modal-content-scroll">
+                <h2 style="margin-bottom: 8px;">Where are we playing?</h2>
+                <p style="color: var(--text-secondary); font-size: 13px; line-height: 1.6; margin-bottom: 16px;">
+                    This decides which side counts as the home team — which matters for the coin toss:
+                    the visiting captain calls the pre-match toss, and the home captain calls the deciding-set toss.
+                </p>
+                <button class="coin-toss-choice" onclick="setVenue('home')">
+                    <span>Home</span>
+                    <span class="coin-toss-side">Tampa Prep is hosting</span>
+                </button>
+                <button class="coin-toss-choice" onclick="setVenue('away')">
+                    <span>Away</span>
+                    <span class="coin-toss-side">Tampa Prep is at the opponent's gym</span>
+                </button>
+            </div>
+        </div>
+    </div>
+
     <div class="modal" id="coin-toss-modal">
         <div class="modal-content">
             <div class="modal-content-scroll">
@@ -2192,7 +2249,7 @@
 
                 <div style="display: flex; gap: 8px; margin-bottom: 14px;">
                     <button id="rotation-mgr-tab-home" class="rotation-mgr-tab" style="flex: 1;" onclick="setRotationManagerTeam('home')">Home</button>
-                    <button id="rotation-mgr-tab-visitor" class="rotation-mgr-tab" style="flex: 1;" onclick="setRotationManagerTeam('visitor')">Visitor</button>
+                    <button id="rotation-mgr-tab-visitor" class="rotation-mgr-tab" style="flex: 1;" onclick="setRotationManagerTeam('visitor')">Opponent</button>
                 </div>
 
                 <div id="rotation-mgr-serve-banner" class="serve-banner" style="display: none;"></div>
@@ -2338,12 +2395,12 @@
             </div>
 
             <div class="settings-group">
-                <h3>Visitor Team</h3>
+                <h3>Opponent</h3>
                 <div style="display: flex; gap: 20px; align-items: start;">
                     <div style="flex: 1;">
                         <div class="form-group">
                             <label>Team Name</label>
-                            <input type="text" id="visitor-team-name" value="Visitor Team">
+                            <input type="text" id="visitor-team-name" value="Opponent">
                         </div>
                     </div>
                     <div>
@@ -2417,6 +2474,15 @@
                 <p style="color: var(--text-secondary); font-size: 11px; margin-top: 8px; font-style: italic;">
                     Data autosaves to this browser every couple seconds. It stays on this device only — download a backup before switching devices or clearing browser data.
                 </p>
+            </div>
+
+            <div class="settings-group">
+                <h3>Venue</h3>
+                <div style="display: flex; gap: 8px;">
+                    <button class="venue-setting-btn" data-venue="home" style="flex: 1;" onclick="setVenueFromSettings('home')">Home</button>
+                    <button class="venue-setting-btn" data-venue="away" style="flex: 1;" onclick="setVenueFromSettings('away')">Away</button>
+                </div>
+                <p id="venue-setting-hint" style="color: var(--text-secondary); font-size: 11px; margin-top: 8px; font-style: italic;"></p>
             </div>
 
             <div class="settings-group">
@@ -2586,7 +2652,7 @@
                     </div>
                     <div style="display: flex; gap: 15px; font-size: 11px; color: var(--text-secondary); margin-bottom: 10px; flex-wrap: wrap;">
                         <span><span style="display:inline-block; width:10px; height:10px; background:var(--team1-color); border-radius:2px; margin-right:4px;"></span>Home point</span>
-                        <span><span style="display:inline-block; width:10px; height:10px; background:var(--team2-color); border-radius:2px; margin-right:4px;"></span>Visitor point</span>
+                        <span><span style="display:inline-block; width:10px; height:10px; background:var(--team2-color); border-radius:2px; margin-right:4px;"></span>Opponent point</span>
                         <span>K=Kill · SE/BE/E/BHE=opponent error type · ERR=other · SKIP/PT/OPP=not tagged</span>
                     </div>
 
@@ -2676,6 +2742,15 @@
             // NFHS 5-4: the pre-match toss (set 1) and, if the match goes the
             // distance, the deciding-set toss. Keyed by set number; sets in
             // between are derived by alternation, not tossed.
+            // Where TAMPA PREP is playing this match: 'home' or 'away'.
+            // The two internal team keys stay 'home' (Tampa Prep) and
+            // 'visitor' (the opponent) because they are the shape of every
+            // saved match in localStorage — renaming them would invalidate
+            // every archive and in-progress save on every device. This flag
+            // is the display-and-rules layer on top: it decides which SIDE
+            // is the home team, which is what NFHS actually keys the coin
+            // toss caller off.
+            venue: null,
             coinToss: {},
             // setNumber -> 'home' | 'visitor'. Which team actually served the
             // first ball of that set, recorded as each set is armed. Drives
@@ -3499,7 +3574,7 @@
                       live ? `${state.home.score} – ${state.visitor.score}` : `Set ${setNumber}, not yet started`)}
                 ${row('Subs remaining', `${state.home.subsRemaining} home / ${state.visitor.subsRemaining} visitor`)}
                 ${row('Home on court', courtSummary('home'))}
-                ${row('Visitor on court', courtSummary('visitor'))}
+                ${row('Opponent on court', courtSummary('visitor'))}
                 ${row('Saved rotations', `${(state.home.rotations || []).length} home / ${(state.visitor.rotations || []).length} visitor`)}
                 ${row('Last saved', formatSavedAgo(lastLoadedSavedAt))}
             `;
@@ -3512,6 +3587,7 @@
             // Nothing to rebuild — init() already restored and repainted
             // everything. This just unblocks the board.
             syncScoreboardFromState();
+            refreshVenueBadges();
             updateGameChoiceDisplay();
             refreshGameLocks();
         }
@@ -3585,6 +3661,7 @@
             updateWhiteboardPlacement();
             updateSettingsButtonPlacement();
             syncScoreboardFromState();
+            refreshVenueBadges();
             updateGameChoiceDisplay();
             refreshGameLocks();
             refreshMatchFormatUI();
@@ -3819,7 +3896,7 @@
 
         function startGame(opts) {
             const homeError = validateTeamReady('home', 'Home');
-            const visitorError = validateTeamReady('visitor', 'Visitor');
+            const visitorError = validateTeamReady('visitor', 'Opponent');
             if (homeError || visitorError) {
                 alert('Cannot start the game yet:\n\n' + [homeError, visitorError].filter(Boolean).join('\n\n'));
                 return;
@@ -3839,6 +3916,11 @@
             // alignment on the floor.
             const thisSet = state.setHistory.length + 1;
             if (firstServerForSet(thisSet) === null) {
+                // Venue first: it determines which captain calls the toss.
+                if (!state.venue) {
+                    openVenueModal();
+                    return;
+                }
                 openCoinTossModal(thisSet);
                 return;
             }
@@ -3928,6 +4010,61 @@
                   playing area, the loser chooses serve/receive.
            =================================================================== */
 
+        /* ===================================================================
+           VENUE — Tampa Prep at home, or away at the opponent's gym
+           =================================================================== */
+
+        /** The team key that is the actual HOME team for this match. */
+        function homeSideTeam() {
+            return state.venue === 'away' ? 'visitor' : 'home';
+        }
+
+        /** The team key that is the actual AWAY (visiting) team. */
+        function awaySideTeam() {
+            return homeSideTeam() === 'home' ? 'visitor' : 'home';
+        }
+
+        /** 'HOME' | 'AWAY' | null for a given team key. */
+        function venueRoleFor(team) {
+            if (!state.venue) return null;
+            return team === homeSideTeam() ? 'HOME' : 'AWAY';
+        }
+
+        function refreshVenueBadges() {
+            ['home', 'visitor'].forEach(team => {
+                const badge = document.getElementById(`${team}-venue-badge`);
+                if (!badge) return;
+                const role = venueRoleFor(team);
+                if (!role) {
+                    badge.style.display = 'none';
+                    return;
+                }
+                badge.style.display = '';
+                badge.textContent = role;
+                badge.classList.toggle('is-away', role === 'AWAY');
+            });
+        }
+
+        function openVenueModal() {
+            document.getElementById('venue-modal').classList.add('active');
+        }
+
+        function closeVenueModal() {
+            document.getElementById('venue-modal').classList.remove('active');
+        }
+
+        function setVenue(where) {
+            state.venue = where;
+            refreshVenueBadges();
+            saveToLocalStorage();
+            closeVenueModal();
+            // Venue decides who calls the toss, so go straight there.
+            const thisSet = state.setHistory.length + 1;
+            if (firstServerForSet(thisSet) === null) {
+                openCoinTossModal(thisSet);
+            }
+        }
+
         function decidingSetNumber() {
             return state.matchFormat > 1 ? state.matchFormat : null;
         }
@@ -3976,14 +4113,19 @@
         function renderCoinTossModal() {
             const setNumber = pendingTossSetNumber;
             const isDeciding = setNumber !== 1;
-            const caller = isDeciding ? 'home' : 'visitor';
+
+            // NFHS: the VISITING captain calls the pre-match toss; the HOME
+            // captain calls the deciding-set toss. Which of our two teams
+            // that is depends on where Tampa Prep is playing, which is
+            // exactly why the venue question comes first.
+            const caller = isDeciding ? homeSideTeam() : awaySideTeam();
 
             document.getElementById('coin-toss-title').textContent =
                 isDeciding ? `Deciding Set ${setNumber} — Coin Toss` : 'Pre-Match Coin Toss';
 
             document.getElementById('coin-toss-rule').textContent = isDeciding
-                ? `NFHS: before the deciding set the HOME captain (${teamDisplayName('home')}) calls the toss. The winner chooses serve/receive or the playing area.`
-                : `NFHS: at the prematch conference the VISITING captain (${teamDisplayName('visitor')}) calls the toss. The winner chooses to serve or receive; the loser gets the remaining choice. The toss is for serve/receive only — the home team has already chosen its playing area.`;
+                ? `NFHS: before the deciding set the HOME captain (${teamDisplayName(caller)}) calls the toss. The winner chooses serve/receive or the playing area.`
+                : `NFHS: at the prematch conference the VISITING captain (${teamDisplayName(caller)}) calls the toss. The winner chooses to serve or receive; the loser gets the remaining choice. The toss is for serve/receive only — the home team has already chosen its playing area.`;
 
             const body = document.getElementById('coin-toss-body');
 
@@ -3991,10 +4133,10 @@
                 body.innerHTML = `
                     <div class="coin-toss-step">Who won the toss?</div>
                     <button class="coin-toss-choice" onclick="setTossWinner('home')">
-                        <span>${teamDisplayName('home')}</span><span class="coin-toss-side">Home</span>
+                        <span>${teamDisplayName('home')}</span><span class="coin-toss-side">${venueRoleFor('home') || 'Tampa Prep'}</span>
                     </button>
                     <button class="coin-toss-choice" onclick="setTossWinner('visitor')">
-                        <span>${teamDisplayName('visitor')}</span><span class="coin-toss-side">Visitor</span>
+                        <span>${teamDisplayName('visitor')}</span><span class="coin-toss-side">${venueRoleFor('visitor') || 'Opponent'}</span>
                     </button>`;
                 return;
             }
@@ -4492,7 +4634,7 @@
             cancelEditPlayer();
             document.getElementById('roster-modal').classList.add('active');
             document.getElementById('roster-modal-header').textContent =
-                team === 'visitor' ? 'Manage Visitor Roster' : 'Manage Home Roster';
+                team === 'visitor' ? 'Manage Opponent Roster' : 'Manage Tampa Prep Roster';
 
             document.getElementById('roster-team-bank-heading').textContent = getBankLabel(team);
             document.getElementById('roster-team-bank-save-btn').textContent =
@@ -5132,7 +5274,7 @@
         function openLoadRotationModal(team) {
             loadRotationModalTeam = team;
             const title = document.getElementById('load-rotation-title');
-            if (title) title.textContent = (team === 'home' ? 'Home' : 'Visitor') + ' — Load Rotation';
+            if (title) title.textContent = (team === 'home' ? 'Tampa Prep' : 'Opponent') + ' — Load Rotation';
             renderLoadRotationModalList();
             document.getElementById('load-rotation-modal').classList.add('active');
         }
@@ -5597,7 +5739,7 @@
         }
 
         function openSubstitutionModal(team, positionIdx, currentPlayer, benchPlayers) {
-            const teamLabel = team === 'home' ? 'Home' : 'Visitor';
+            const teamLabel = team === 'home' ? 'Tampa Prep' : 'Opponent';
             const posNumber = positionIdx + 1;
 
             document.getElementById('sub-modal-title').textContent = `${teamLabel} Substitution — Position ${posNumber}`;
@@ -6027,7 +6169,7 @@
                                 <th>${homeTeamName}</th>
                                 <th>${visitorTeamName}</th>
                                 <th>Home Kills</th>
-                                <th>Visitor Kills</th>
+                                <th>Opponent Kills</th>
                                 <th>Date/Time</th>
                             </tr>
                         </thead>
@@ -6064,6 +6206,36 @@
          * changing the target mid-match would retroactively re-decide sets
          * already in the books.
          */
+        function setVenueFromSettings(where) {
+            if (state.matchInProgress) {
+                alert('Venue is locked once the match starts.\n\nIt decides which captain calls the coin toss, so changing it mid-match would rewrite a decision already made. End the match first.');
+                refreshVenueSettingUI();
+                return;
+            }
+            state.venue = where;
+            refreshVenueBadges();
+            refreshVenueSettingUI();
+            saveToLocalStorage();
+        }
+
+        function refreshVenueSettingUI() {
+            const buttons = document.querySelectorAll('.venue-setting-btn');
+            if (!buttons.length) return;
+            buttons.forEach(btn => {
+                btn.classList.toggle('active', btn.dataset.venue === state.venue);
+                btn.classList.toggle('is-game-locked', !!state.matchInProgress);
+            });
+            const hint = document.getElementById('venue-setting-hint');
+            if (hint) {
+                hint.textContent = (!state.venue
+                    ? 'Not set yet — you\'ll be asked when the match starts.'
+                    : (state.venue === 'home'
+                        ? 'Tampa Prep is hosting. The opponent\'s captain calls the pre-match toss.'
+                        : 'Tampa Prep is away. Our captain calls the pre-match toss.'))
+                    + (state.matchInProgress ? ' Locked until the match ends.' : '');
+            }
+        }
+
         function setMatchFormat(format) {
             if (![1, 3, 5].includes(format)) return;
 
@@ -6109,6 +6281,7 @@
             const skipToggle = document.getElementById('skip-confirmations-toggle');
             if (skipToggle) skipToggle.classList.toggle('active', !!state.skipConfirmations);
             refreshMatchFormatUI();
+            refreshVenueSettingUI();
         }
 
         function closeSettings() {
@@ -6371,6 +6544,11 @@
             // rotation and team control unlocks.
             state.gameStarted = false;
             state.matchInProgress = false;
+            // Venue, toss and serve records belong to the match that just
+            // ended — the next one may well be at a different gym.
+            state.venue = null;
+            state.coinToss = {};
+            state.setServeStart = {};
 
             document.getElementById('home-score').textContent = '0';
             document.getElementById('visitor-score').textContent = '0';
@@ -6387,6 +6565,7 @@
             updateVisitorDisplay();
             refreshGameLocks();
             refreshMatchFormatUI();
+            refreshVenueBadges();
             saveToLocalStorage();
         }
 
@@ -8676,7 +8855,7 @@
                 <body>
                     <div class="plan-meta">
                         <span><strong>${plan.name}</strong></span>
-                        <span>${document.getElementById('visitor-name').textContent} (V) vs ${document.getElementById('home-name').textContent} (H)</span>
+                        <span>${teamDisplayName(awaySideTeam())} (Away) at ${teamDisplayName(homeSideTeam())} (Home)</span>
                         ${planContextLabel(plan) ? `<span><strong>${planContextLabel(plan)}</strong></span>` : ''}
                         <span>${new Date().toLocaleDateString()}</span>
                     </div>
