@@ -9,7 +9,7 @@
          fetches this tag fresh (bypassing cache) on every app launch and
          reloads automatically if it doesn't match. Reloading does NOT clear
          localStorage, so saved rosters/history/rotations are unaffected. -->
-    <meta name="app-version" content="2026-09-07-2">
+    <meta name="app-version" content="2026-09-08-1">
     <!-- GitHub Pages doesn't allow custom HTTP cache headers, and iOS
          "Add to Home Screen" apps can cache more aggressively than a normal
          browser tab. These meta tags are a second, independent line of
@@ -279,6 +279,36 @@
         .btn-export { background: #10b981; }
         .btn-score { background: #10b981; font-size: 18px; padding: 8px 16px; }
         .btn-undo { background: #f59e0b; }
+        /* Pre-set lineup building. Tap 1 highlights in the team's own colour,
+           tap 2 turns green — the same green used for bench selection during
+           a live substitution, so the gesture reads the same in both modes. */
+        #visitor-court .position.pos-selected {
+            box-shadow: inset 0 0 0 3px var(--team1-color);
+            background: rgba(255, 255, 255, 0.06);
+        }
+
+        #home-court .position.pos-selected {
+            box-shadow: inset 0 0 0 3px var(--team2-color);
+            background: rgba(255, 255, 255, 0.06);
+        }
+
+        .position.pos-swapping {
+            box-shadow: inset 0 0 0 3px #10b981, 0 0 14px rgba(16, 185, 129, 0.55);
+            background: rgba(16, 185, 129, 0.14) !important;
+        }
+
+        .btn-remove-court {
+            margin-top: 5px;
+            padding: 4px 10px;
+            font-size: 10px;
+            font-weight: 800;
+            letter-spacing: 0.4px;
+            background: #b91c1c;
+            border-radius: 999px;
+            position: relative;
+            z-index: 2;
+        }
+
         .btn-sub {
             margin-top: 5px;
             padding: 5px 12px;
@@ -400,6 +430,47 @@
             opacity: 0.4;
             filter: grayscale(0.6);
             cursor: not-allowed;
+        }
+
+        .coin-toss-step {
+            font-size: 15px;
+            font-weight: 700;
+            color: var(--text-primary);
+            margin-bottom: 12px;
+        }
+
+        .coin-toss-choice {
+            display: flex;
+            flex-direction: column;
+            align-items: flex-start;
+            gap: 3px;
+            width: 100%;
+            margin-bottom: 10px;
+            padding: 12px 14px;
+            border: 2px solid var(--border-color);
+            border-radius: 10px;
+            background: var(--button-bg);
+            color: var(--text-primary);
+            font-size: 16px;
+            font-weight: 700;
+            text-align: left;
+        }
+
+        .coin-toss-choice .coin-toss-side {
+            font-size: 11px;
+            font-weight: 500;
+            color: var(--text-secondary);
+        }
+
+        .serve-banner {
+            padding: 10px 12px;
+            margin-bottom: 12px;
+            border-radius: 10px;
+            border: 2px solid #0ea5e9;
+            background: rgba(14, 165, 233, 0.12);
+            font-size: 13px;
+            line-height: 1.5;
+            color: var(--text-primary);
         }
 
         .rotation-mgr-tab {
@@ -1767,14 +1838,13 @@
             width: 100%;
             height: 170px;
             touch-action: none;
-            /* Same graph-paper surface the print stylesheet gives .wb, so
-               what the coach draws on maps 1:1 to what comes out of the
-               printer. Supplied by CSS rather than painted into the canvas
-               so it is never captured in the exported bitmap. */
-            background-color: #fff;
-            background-image:
-                repeating-linear-gradient(0deg, transparent, transparent 11px, #eee 11px, #eee 12px),
-                repeating-linear-gradient(90deg, transparent, transparent 11px, #f4f4f4 11px, #f4f4f4 12px);
+            /* Plain white. The graph grid was a fixed-pixel repeating
+               gradient, so it rendered at one density on screen and another
+               on the printed page — which is what kept making exported
+               boards look stretched. Nothing is painted into the canvas and
+               nothing is tiled behind it now, so there is no reference grid
+               left to disagree about. */
+            background-color: #ffffff;
             border-radius: 3px;
         }
 
@@ -2103,6 +2173,16 @@
         </div>
     </div>
 
+    <div class="modal" id="coin-toss-modal">
+        <div class="modal-content">
+            <div class="modal-content-scroll">
+                <h2 id="coin-toss-title" style="margin-bottom: 8px;">Coin Toss</h2>
+                <p id="coin-toss-rule" style="color: var(--text-secondary); font-size: 12px; line-height: 1.6; margin-bottom: 16px;"></p>
+                <div id="coin-toss-body"></div>
+            </div>
+        </div>
+    </div>
+
     <div class="modal" id="rotation-ready-modal">
         <div class="modal-content">
             <button class="modal-close" onclick="closeRotationReadyModal()">×</button>
@@ -2114,6 +2194,8 @@
                     <button id="rotation-mgr-tab-home" class="rotation-mgr-tab" style="flex: 1;" onclick="setRotationManagerTeam('home')">Home</button>
                     <button id="rotation-mgr-tab-visitor" class="rotation-mgr-tab" style="flex: 1;" onclick="setRotationManagerTeam('visitor')">Visitor</button>
                 </div>
+
+                <div id="rotation-mgr-serve-banner" class="serve-banner" style="display: none;"></div>
 
                 <div style="padding: 12px; border-radius: 10px; border: 1px solid var(--border-color); background: var(--button-bg); margin-bottom: 12px;">
                     <div style="font-size: 11px; text-transform: uppercase; letter-spacing: 0.5px; color: var(--text-secondary); margin-bottom: 8px;">Lineup on court now</div>
@@ -2591,6 +2673,15 @@
             // Whether the "is your rotation ready?" prompt appears at the
             // start of each set. On by default; dismissible from the prompt.
             suppressRotationPrompt: false,
+            // NFHS 5-4: the pre-match toss (set 1) and, if the match goes the
+            // distance, the deciding-set toss. Keyed by set number; sets in
+            // between are derived by alternation, not tossed.
+            coinToss: {},
+            // setNumber -> 'home' | 'visitor'. Which team actually served the
+            // first ball of that set, recorded as each set is armed. Drives
+            // both the alternation for the next set and the rotation-plan
+            // header.
+            setServeStart: {},
             liberoRules: {
                 enabled: false,
                 allowServing: false,
@@ -3563,6 +3654,11 @@
                             <div class="player-name">${player.name}</div>
                             ${player.position ? `<div class="player-position">${player.position}</div>` : ''}
                             ${state.gameStarted ? `<button class="btn-sub" onclick="openSubstitution('${team}', ${pos - 1}, event)">SUB</button>` : ''}
+                            ${(!state.gameStarted && player && preGameSelection &&
+                               preGameSelection.team === team &&
+                               preGameSelection.positionIdx === (pos - 1) &&
+                               preGameSelection.stage === 'swapping')
+                                ? `<button class="btn-remove-court" onclick="removeFromCourt('${team}', ${pos - 1}, event)">✕ Remove</button>` : ''}
                         ` : `<div style="color: var(--text-secondary); font-size: 12px;">Click to assign</div>`}
                     </div>
                 `;
@@ -3570,6 +3666,7 @@
 
             // The re-render just destroyed any lit SUB button; restore it.
             refreshSubHighlight();
+            refreshPreGameHighlight();
             applySubConfirmationFlash();
         }
 
@@ -3734,6 +3831,18 @@
             // for the next set — the lineup locked the instant the set began.
             // Gating here means the choice happens while the court is still
             // editable.
+            // A set can't legally start until it's known who serves first.
+            // Set 1 and the deciding set are decided by a coin toss; the sets
+            // in between alternate off the previous set. This gate comes
+            // BEFORE the rotation chooser because the toss result is what
+            // tells the coach whether to put the serving or the receiving
+            // alignment on the floor.
+            const thisSet = state.setHistory.length + 1;
+            if (firstServerForSet(thisSet) === null) {
+                openCoinTossModal(thisSet);
+                return;
+            }
+
             // Start and Rotations are one button now: every start routes
             // through the chooser first, so the coach reviews or swaps the
             // lineup while the court is still editable, then confirms.
@@ -3745,6 +3854,17 @@
             // Match format now comes from Settings rather than a prompt on
             // every Start — it was being re-asked at the top of every set,
             // since gameStarted flips back to false between sets.
+            const firstServer = firstServerForSet(thisSet);
+            if (firstServer) {
+                state.home.serving = firstServer === 'home';
+                state.visitor.serving = firstServer === 'visitor';
+                state.setServeStart[thisSet] = firstServer;
+            }
+
+            // Any half-finished lineup-building gesture is void once the
+            // set is armed.
+            clearPreGameSelection(false);
+
             state.gameStarted = true;
             state.matchInProgress = true;
             updateCourt('home');
@@ -3793,6 +3913,184 @@
             saveToLocalStorage();
         }
 
+        /* ===================================================================
+           COIN TOSS & FIRST SERVE  (NFHS 5-4 / FHSAA)
+
+           Set 1: toss at the prematch conference, called by the visiting
+                  captain. Winner picks serve or receive; loser gets the
+                  other. Under NFHS the toss is for serve/receive ONLY —
+                  the home team has already chosen its playing area.
+           Sets 2..n-1: no toss. First serve simply alternates — whoever
+                  received first in the previous set serves first next.
+           Deciding set (3 of a best-of-3, 5 of a best-of-5): a fresh toss,
+                  called by the HOME captain, and this one is for
+                  serve/receive OR playing area. If the winner takes the
+                  playing area, the loser chooses serve/receive.
+           =================================================================== */
+
+        function decidingSetNumber() {
+            return state.matchFormat > 1 ? state.matchFormat : null;
+        }
+
+        function setRequiresCoinToss(setNumber) {
+            if (setNumber === 1) return true;
+            return setNumber === decidingSetNumber();
+        }
+
+        /**
+         * Which team serves the first ball of a given set, or null if it
+         * can't be determined yet (toss not recorded, or the previous set
+         * never started).
+         */
+        function firstServerForSet(setNumber) {
+            if (setRequiresCoinToss(setNumber)) {
+                const toss = state.coinToss[setNumber];
+                return toss ? toss.firstServer : null;
+            }
+            const previous = state.setServeStart[setNumber - 1];
+            if (!previous) return null;
+            return previous === 'home' ? 'visitor' : 'home';
+        }
+
+        function teamDisplayName(team) {
+            return document.getElementById(`${team}-name`).textContent;
+        }
+
+        // ── Toss modal ─────────────────────────────────────────────────────
+        let pendingTossSetNumber = null;
+        let pendingTossWinner = null;
+
+        function openCoinTossModal(setNumber) {
+            pendingTossSetNumber = setNumber;
+            pendingTossWinner = null;
+            renderCoinTossModal();
+            document.getElementById('coin-toss-modal').classList.add('active');
+        }
+
+        function closeCoinTossModal() {
+            document.getElementById('coin-toss-modal').classList.remove('active');
+            pendingTossSetNumber = null;
+            pendingTossWinner = null;
+        }
+
+        function renderCoinTossModal() {
+            const setNumber = pendingTossSetNumber;
+            const isDeciding = setNumber !== 1;
+            const caller = isDeciding ? 'home' : 'visitor';
+
+            document.getElementById('coin-toss-title').textContent =
+                isDeciding ? `Deciding Set ${setNumber} — Coin Toss` : 'Pre-Match Coin Toss';
+
+            document.getElementById('coin-toss-rule').textContent = isDeciding
+                ? `NFHS: before the deciding set the HOME captain (${teamDisplayName('home')}) calls the toss. The winner chooses serve/receive or the playing area.`
+                : `NFHS: at the prematch conference the VISITING captain (${teamDisplayName('visitor')}) calls the toss. The winner chooses to serve or receive; the loser gets the remaining choice. The toss is for serve/receive only — the home team has already chosen its playing area.`;
+
+            const body = document.getElementById('coin-toss-body');
+
+            if (!pendingTossWinner) {
+                body.innerHTML = `
+                    <div class="coin-toss-step">Who won the toss?</div>
+                    <button class="coin-toss-choice" onclick="setTossWinner('home')">
+                        <span>${teamDisplayName('home')}</span><span class="coin-toss-side">Home</span>
+                    </button>
+                    <button class="coin-toss-choice" onclick="setTossWinner('visitor')">
+                        <span>${teamDisplayName('visitor')}</span><span class="coin-toss-side">Visitor</span>
+                    </button>`;
+                return;
+            }
+
+            const loser = pendingTossWinner === 'home' ? 'visitor' : 'home';
+            const areaOption = isDeciding
+                ? `<button class="coin-toss-choice" onclick="resolveToss('area')">
+                       <span>Took the playing area</span>
+                       <span class="coin-toss-side">${teamDisplayName(loser)} then chooses serve/receive</span>
+                   </button>`
+                : '';
+
+            body.innerHTML = `
+                <div class="coin-toss-step">${teamDisplayName(pendingTossWinner)} won. What did they choose?</div>
+                <button class="coin-toss-choice" onclick="resolveToss('serve')">
+                    <span>Serve</span><span class="coin-toss-side">${teamDisplayName(pendingTossWinner)} serves first</span>
+                </button>
+                <button class="coin-toss-choice" onclick="resolveToss('receive')">
+                    <span>Receive</span><span class="coin-toss-side">${teamDisplayName(loser)} serves first</span>
+                </button>
+                ${areaOption}
+                <button style="background: #6b7280; width: 100%; margin-top: 10px;" onclick="setTossWinner(null)">← Back</button>`;
+        }
+
+        function setTossWinner(team) {
+            pendingTossWinner = team;
+            renderCoinTossModal();
+        }
+
+        function resolveToss(choice) {
+            const setNumber = pendingTossSetNumber;
+            const winner = pendingTossWinner;
+            const loser = winner === 'home' ? 'visitor' : 'home';
+
+            let firstServer;
+            if (choice === 'serve') {
+                firstServer = winner;
+            } else if (choice === 'receive') {
+                firstServer = loser;
+            } else {
+                // Deciding set only: the winner took the playing area, so the
+                // loser now picks serve or receive.
+                pendingTossWinner = null;
+                const wantsServe = confirm(
+                    `${teamDisplayName(winner)} took the playing area.\n\n` +
+                    `${teamDisplayName(loser)} now chooses:\n\n` +
+                    'OK = Serve\nCancel = Receive');
+                firstServer = wantsServe ? loser : winner;
+                state.coinToss[setNumber] = { winner, choice: 'area', firstServer };
+                closeCoinTossModal();
+                applyFirstServe(setNumber, firstServer);
+                return;
+            }
+
+            state.coinToss[setNumber] = { winner, choice, firstServer };
+            closeCoinTossModal();
+            applyFirstServe(setNumber, firstServer);
+        }
+
+        /**
+         * Records who serves first and sets the serving flags. Does NOT start
+         * the set — the coach still confirms the lineup in the rotation
+         * chooser, which is where the receiving shift is offered.
+         */
+        function applyFirstServe(setNumber, firstServer) {
+            const receiver = firstServer === 'home' ? 'visitor' : 'home';
+            state.home.serving = firstServer === 'home';
+            state.visitor.serving = firstServer === 'visitor';
+            state.setServeStart[setNumber] = firstServer;
+
+            updateCourt('home');
+            updateCourt('visitor');
+            saveToLocalStorage();
+
+            // Straight back into the chooser, which now shows the serve/receive
+            // banner and the one-tap receiving shift.
+            openRotationManager('chooser');
+        }
+
+        /**
+         * Shifts a team one zone forward — the receiving alignment. Available
+         * only before the set is armed, since it re-orders the court.
+         */
+        function applyReceivingShift(team) {
+            if (blockedByLiveSet()) return;
+            if (state[team].positions.filter(p => p).length !== 6) {
+                alert('Set all six court positions before shifting for receive.');
+                return;
+            }
+            rotateBackward(team);
+            updateCourt(team);
+            updateBench(team);
+            saveToLocalStorage();
+            renderRotationManager();
+        }
+
         function setRotationManagerTeam(team) {
             rotationManagerTeam = team;
             renderRotationManager();
@@ -3827,6 +4125,33 @@
                 const tab = document.getElementById(`rotation-mgr-tab-${t}`);
                 if (tab) tab.classList.toggle('active', t === team);
             });
+
+            // Serve/receive context for the set about to start — the whole
+            // point of the toss is knowing which alignment goes on the floor.
+            const banner = document.getElementById('rotation-mgr-serve-banner');
+            const firstServer = firstServerForSet(nextSet);
+            if (banner) {
+                if (isChooser && firstServer) {
+                    const serving = firstServer === team;
+                    const origin = setRequiresCoinToss(nextSet)
+                        ? (nextSet === 1 ? 'pre-match coin toss' : `Set ${nextSet} coin toss`)
+                        : `alternation from Set ${nextSet - 1}`;
+                    const slotOne = state[team].positions[5];
+                    const slotOneLabel = slotOne ? `#${slotOne.jersey || '?'} ${slotOne.name}` : 'position 1';
+
+                    banner.style.display = '';
+                    banner.innerHTML = serving
+                        ? `<strong>${teamDisplayName(team)} SERVES first</strong> in Set ${nextSet} (${origin}).<br>` +
+                          `${slotOneLabel} is in position 1 and serves the opening point.`
+                        : `<strong>${teamDisplayName(team)} RECEIVES first</strong> in Set ${nextSet} (${origin}).<br>` +
+                          `Receiving lineups start one zone forward, so your first server sits in position 2 and ` +
+                          `rotates into position 1 on the opening side-out.` +
+                          `<button style="background: #0ea5e9; width: 100%; margin-top: 8px;" onclick="applyReceivingShift('${team}')">` +
+                          `↺ Shift one zone forward for receive</button>`;
+                } else {
+                    banner.style.display = 'none';
+                }
+            }
 
             document.getElementById('rotation-mgr-current').innerHTML =
                 (state[team].positions || []).map(p => `
@@ -4090,6 +4415,28 @@
                 positions[i] = positions[i + 1];
             }
             positions[5] = temp;
+        }
+
+        /**
+         * Exact inverse of rotate(). Written as the mirror of the function
+         * above rather than from first principles, so the two can never
+         * disagree about which way "clockwise" runs in this codebase.
+         *
+         * Used for the receiving shift: NFHS lineups are a service ORDER, and
+         * slot I is always the first server. A team serving first starts slot
+         * I in zone 1 and serves the opening point; a team receiving first
+         * starts everyone one zone forward, so slot I sits in zone 2 and
+         * rotates into zone 1 on the first side-out — at which point the
+         * alignment is identical to the serving one. Shifting backward once
+         * from the serving alignment produces exactly that.
+         */
+        function rotateBackward(team) {
+            const positions = state[team].positions;
+            const temp = positions[5];
+            for (let i = 5; i > 0; i--) {
+                positions[i] = positions[i - 1];
+            }
+            positions[0] = temp;
         }
 
         /**
@@ -4930,17 +5277,111 @@
                 return;
             }
 
-            // Before the set starts, tapping a filled slot swaps or clears it.
-            if (!state.gameStarted) {
-                const action = confirm('Current: ' + player.name + '\n\nClick OK to swap this player\nClick Cancel to remove from court');
-                if (action) {
-                    openSwapPlayer(team, positionIdx);
-                } else {
-                    state[team].positions[positionIdx] = null;
-                    updateCourt(team);
-                    updateBench(team);
-                }
+            // Before the set starts, building the lineup is a two-tap
+            // gesture rather than a browser confirm() — a modal dialog in the
+            // middle of setting a lineup is slow courtside and reads as an
+            // error popup.
+            //
+            //   tap 1 on a player  -> highlighted in the team's own colour
+            //   tap 2 on the same  -> turns green and greens the bench, the
+            //                         same visual language as a live sub
+            //   tap 3 on the same  -> deselects
+            //
+            // While green, tapping a bench player brings them on, and tapping
+            // another court box swaps the two positions.
+            handlePreGameTap(team, positionIdx);
+        }
+
+        // Which court box the coach is part-way through acting on before a set
+        // starts. stage: 'selected' (team colour) -> 'swapping' (green).
+        let preGameSelection = null;
+
+        function clearPreGameSelection(refresh) {
+            preGameSelection = null;
+            assignmentInProgress = null;
+            document.querySelectorAll('.bench-player').forEach(p => {
+                p.classList.remove('selected');
+                p.style.cursor = '';
+                p.style.transform = '';
+            });
+            document.querySelectorAll('.position').forEach(p => {
+                p.classList.remove('can-receive', 'pos-selected', 'pos-swapping');
+            });
+            if (refresh) {
+                updateCourt('home');
+                updateCourt('visitor');
             }
+        }
+
+        function handlePreGameTap(team, positionIdx) {
+            const sameBox = preGameSelection &&
+                preGameSelection.team === team &&
+                preGameSelection.positionIdx === positionIdx;
+
+            if (sameBox) {
+                if (preGameSelection.stage === 'selected') {
+                    preGameSelection.stage = 'swapping';
+                    updateCourt(team);
+                    refreshPreGameHighlight();
+                    // Greens the bench and marks this box as the receiver,
+                    // reusing the existing assignment machinery.
+                    openSwapPlayer(team, positionIdx);
+                    return;
+                }
+                // Third tap on the same box — back to neutral.
+                clearPreGameSelection(true);
+                return;
+            }
+
+            // Tapping a different box while one is armed green swaps the two
+            // court positions outright.
+            if (preGameSelection && preGameSelection.stage === 'swapping' &&
+                preGameSelection.team === team) {
+                const from = preGameSelection.positionIdx;
+                const tmp = state[team].positions[from];
+                state[team].positions[from] = state[team].positions[positionIdx];
+                state[team].positions[positionIdx] = tmp;
+                clearPreGameSelection(false);
+                updateCourt(team);
+                updateBench(team);
+                saveToLocalStorage();
+                return;
+            }
+
+            // Otherwise this is a fresh first tap.
+            clearPreGameSelection(false);
+            preGameSelection = { team, positionIdx, stage: 'selected' };
+            updateCourt(team);
+            refreshPreGameHighlight();
+        }
+
+        /**
+         * Re-applies the selection classes after a court re-render, the same
+         * way refreshSubHighlight does for the live-set SUB button.
+         */
+        function refreshPreGameHighlight() {
+            document.querySelectorAll('.position.pos-selected, .position.pos-swapping')
+                .forEach(p => p.classList.remove('pos-selected', 'pos-swapping'));
+
+            if (!preGameSelection || state.gameStarted) return;
+
+            const court = document.getElementById(`${preGameSelection.team}-court`);
+            if (!court) return;
+            const cell = court.querySelector(`.position[data-position-index="${preGameSelection.positionIdx}"]`);
+            if (!cell) return;
+
+            cell.classList.add(preGameSelection.stage === 'swapping' ? 'pos-swapping' : 'pos-selected');
+        }
+
+        /** Clears the slot entirely. Offered on the card while it's armed. */
+        function removeFromCourt(team, positionIdx, event) {
+            if (event) event.stopPropagation();
+            if (state.gameStarted) return;
+            state[team].positions[positionIdx] = null;
+            clearPreGameSelection(false);
+            updateCourt(team);
+            updateBench(team);
+            saveToLocalStorage();
         }
 
         function openSwapPlayer(team, positionIdx) {
@@ -5241,10 +5682,14 @@
                     p.style.transform = '';
                 });
                 document.querySelectorAll('#' + team + '-court .position').forEach(function(p) {
-                    p.classList.remove('can-receive');
+                    p.classList.remove('can-receive', 'pos-selected', 'pos-swapping');
                 });
                 assignmentInProgress = null;
-                
+                // The two-tap gesture is finished too. Leaving this armed left
+                // the box green after the swap, and the NEXT tap anywhere on
+                // that court was then read as "swap with the armed box".
+                preGameSelection = null;
+
                 updateCourt(team);
                 updateBench(team);
                 return;
@@ -7449,6 +7894,23 @@
                 return;
             }
 
+            // Snapshot the match context this plan was generated FROM. A
+            // rotation plan is only meaningful alongside which set it came
+            // out of and whether we opened that set serving or receiving —
+            // the same six players produce a different first server
+            // depending on that.
+            const contextSet = state.matchInProgress
+                ? (state.gameStarted ? state.setHistory.length + 1 : state.setHistory.length + 1)
+                : null;
+            const contextServe = contextSet ? (state.setServeStart[contextSet] || firstServerForSet(contextSet)) : null;
+            const planContext = {
+                live: !!state.matchInProgress,
+                setNumber: contextSet,
+                homeServedFirst: contextServe ? contextServe === 'home' : null,
+                homeTeamName: document.getElementById('home-name').textContent,
+                capturedAt: new Date().toISOString()
+            };
+
             const homeRotations = [homeStarting.map(p => ({
                 id: p.id,
                 name: p.name,
@@ -7497,11 +7959,30 @@
                 name: 'Rotation Plan ' + (state.rotationPlanner.savedPlans.length + 1),
                 homeRotations: homeRotations,
                 visitorRotations: visitorRotations,
-                rotationWhiteboards: [[], [], [], [], [], []]
+                rotationWhiteboards: [[], [], [], [], [], []],
+                context: planContext
             };
 
-            document.getElementById('planner-draft-name').textContent = state.rotationPlanner.currentPlan.name;
+            const ctxLabel = planContextLabel(state.rotationPlanner.currentPlan);
+            document.getElementById('planner-draft-name').textContent =
+                state.rotationPlanner.currentPlan.name + (ctxLabel ? ' · ' + ctxLabel : '');
             renderRotationPlanner();
+        }
+
+        /**
+         * One-line description of the match context a plan came from, e.g.
+         * "Set 3 — Tampa Prep received first". Returns '' for plans generated
+         * outside a live match, and for plans saved before context tracking
+         * existed.
+         */
+        function planContextLabel(plan) {
+            const ctx = plan && plan.context;
+            if (!ctx || !ctx.live || !ctx.setNumber) return '';
+            const team = ctx.homeTeamName || 'Home';
+            if (ctx.homeServedFirst === null || ctx.homeServedFirst === undefined) {
+                return `Set ${ctx.setNumber}`;
+            }
+            return `Set ${ctx.setNumber} — ${team} ${ctx.homeServedFirst ? 'SERVED' : 'RECEIVED'} first`;
         }
 
         function renderRotationPlanner() {
@@ -8155,10 +8636,9 @@
                             border-radius: 3px;
                             overflow: hidden;
                             position: relative;
-                            background-color: #fff;
-                            background-image:
-                                repeating-linear-gradient(0deg, transparent, transparent 11px, #eee 11px, #eee 12px),
-                                repeating-linear-gradient(90deg, transparent, transparent 11px, #f4f4f4 11px, #f4f4f4 12px);
+                            /* Plain white — matches the on-screen board
+                               exactly. See .rotation-mini-canvas. */
+                            background-color: #ffffff;
                         }
                         .wb img {
                             position: absolute;
@@ -8197,6 +8677,7 @@
                     <div class="plan-meta">
                         <span><strong>${plan.name}</strong></span>
                         <span>${document.getElementById('visitor-name').textContent} (V) vs ${document.getElementById('home-name').textContent} (H)</span>
+                        ${planContextLabel(plan) ? `<span><strong>${planContextLabel(plan)}</strong></span>` : ''}
                         <span>${new Date().toLocaleDateString()}</span>
                     </div>
 
