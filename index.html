@@ -9,7 +9,7 @@
          fetches this tag fresh (bypassing cache) on every app launch and
          reloads automatically if it doesn't match. Reloading does NOT clear
          localStorage, so saved rosters/history/rotations are unaffected. -->
-    <meta name="app-version" content="2026-09-08-2">
+    <meta name="app-version" content="2026-09-09-2">
     <!-- GitHub Pages doesn't allow custom HTTP cache headers, and iOS
          "Add to Home Screen" apps can cache more aggressively than a normal
          browser tab. These meta tags are a second, independent line of
@@ -297,60 +297,67 @@
             background: rgba(16, 185, 129, 0.14) !important;
         }
 
-        .btn-remove-court {
-            margin-top: 5px;
-            padding: 4px 10px;
+        /* SUB and Remove are footer strips fused to the bottom of the card,
+           not floating pills with a gap beneath them — margin-top:auto
+           pushes each to the bottom of its flex column regardless of how
+           much content sits above it, and squared top corners plus
+           bottom corners matched to the card's own radius make the button
+           read as part of the card rather than a separate control sitting
+           on top of it. */
+        .btn-remove-court,
+        .btn-sub {
+            margin-top: auto;
+            width: calc(100% + 8px);
+            margin-left: -4px;
+            margin-right: -4px;
+            margin-bottom: 0;
+            padding: 6px 4px;
             font-size: 10px;
             font-weight: 800;
             letter-spacing: 0.4px;
-            background: #b91c1c;
-            border-radius: 999px;
+            border-radius: 0 0 6px 6px;
             position: relative;
             z-index: 2;
+        }
+
+        .btn-remove-court {
+            background: #b91c1c;
         }
 
         .btn-sub {
-            margin-top: 5px;
-            padding: 5px 12px;
-            font-size: 11px;
-            font-weight: 800;
-            letter-spacing: 0.6px;
             background: #f97316;
-            border-radius: 999px;
-            transition: box-shadow 0.15s, transform 0.15s, background 0.15s;
-            position: relative;
-            z-index: 2;
+            transition: box-shadow 0.15s, background 0.15s;
         }
 
         /* Lit while this position's substitution is open, so it's obvious
-           which player is being subbed — the button used to look identical
-           whether or not it had registered the tap. */
+           which player is being subbed. Colour change plus a thin outline
+           ring is enough on a full-width button — the button used to be a
+           small pill that scaled up 12% when active, which on a flush
+           full-width footer would read as the whole card lurching rather
+           than a clean state change. */
         .btn-sub.is-active {
             background: #ffb457;
             color: #1a1a1a;
-            box-shadow: 0 0 0 3px rgba(249, 115, 22, 0.7), 0 0 18px rgba(249, 115, 22, 0.95);
-            transform: scale(1.12);
+            box-shadow: inset 0 0 0 2px #fff7ed;
         }
 
         /* Confirmation flash on the position that just changed. The armed
            highlight is hidden behind the substitution modal, so without this
            the coach never actually sees the button light up. */
         .btn-sub.just-subbed {
-            animation: subConfirm 1.4s ease-out;
+            animation: subConfirm 1.2s ease-out;
         }
 
         @keyframes subConfirm {
             0%, 55% {
                 background: #ffb457;
                 color: #1a1a1a;
-                box-shadow: 0 0 0 3px rgba(249, 115, 22, 0.7), 0 0 18px rgba(249, 115, 22, 0.95);
-                transform: scale(1.12);
+                box-shadow: inset 0 0 0 2px #fff7ed;
             }
             100% {
                 background: #f97316;
                 color: #fff;
                 box-shadow: none;
-                transform: scale(1);
             }
         }
 
@@ -574,66 +581,52 @@
             color: var(--text-primary);
         }
 
-        /* Saved rotations, listed directly beneath "Save Rotation" in the
-           bench rail. Replaces the old Load button + popup: the coach can see
-           what's saved without opening anything, and load it in one tap. */
-        .uc-rotation-list {
+        /* Saved rotations, listed directly below that team's own name in the
+           court header — NOT tucked inside the bench sheet or any other
+           collapsible container. This is a plain always-visible list: one
+           row per saved rotation, nothing to open first. Renders nothing at
+           all when a team has no saved rotations yet, so it costs zero
+           space until there's something to show. */
+        .uc-team-rotation-list {
             display: flex;
             flex-direction: column;
-            gap: 3px;
-            margin-top: 2px;
         }
 
-        /* Stacked, not inline. The rail is only ~130px wide, and the base
-           button rule makes buttons flex-grow — so Load and the delete "x"
-           ate the whole row and squeezed the name to zero width. The name
-           now gets its own full-width line and is actually readable. */
-        .uc-rotation-row {
+        /* Single line per rotation — name, Load, delete, all inline. This
+           sits under the full-width team header rather than the old 130px
+           bench-rail column, so there's no need to stack the name onto its
+           own line to keep it readable; it fits fine on one line here. */
+        .uc-team-rotation-row {
             display: flex;
-            flex-direction: column;
-            align-items: stretch;
-            gap: 4px;
-            padding: 5px;
-            border: 1px solid var(--border-color);
-            border-radius: 6px;
-            background: var(--button-bg);
+            align-items: center;
+            gap: 8px;
+            padding: 5px 12px;
+            border-bottom: 1px solid var(--border-color);
         }
 
-        .uc-rotation-row .uc-rotation-name {
-            font-size: 11px;
+        .uc-team-rotation-row .uc-rotation-name {
+            flex: 1;
+            min-width: 0;
+            font-size: 12px;
             font-weight: 700;
             color: var(--text-primary);
-            line-height: 1.25;
-            overflow-wrap: anywhere;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
         }
 
-        .uc-rotation-row .uc-rotation-actions {
-            display: flex;
-            align-items: stretch;
-            gap: 4px;
-        }
-
-        .uc-rotation-row .uc-rotation-actions .btn-load {
-            flex: 1 1 auto;
-        }
-
-        .uc-rotation-row .uc-rotation-actions .btn-delete {
-            flex: 0 0 26px;
-        }
-
-        .uc-rotation-row button {
-            padding: 4px 5px;
-            font-size: 10px;
-            line-height: 1;
+        .uc-team-rotation-row .btn-load {
+            flex: 0 0 auto;
+            padding: 3px 12px;
+            font-size: 11px;
             min-height: 24px;
         }
 
-        .uc-rotation-empty {
-            font-size: 8px;
-            color: var(--text-secondary);
-            text-align: center;
-            font-style: italic;
-            padding: 2px;
+        .uc-team-rotation-row .btn-delete {
+            flex: 0 0 auto;
+            padding: 3px 9px;
+            font-size: 11px;
+            min-height: 24px;
         }
 
         .btn-roster { background: #8b5cf6; flex: 1; }
@@ -702,15 +695,15 @@
             flex-direction: column;
             align-items: center;
             justify-content: flex-start;
-            padding: 4px 3px;
+            /* No bottom padding: the SUB/Remove button sits flush against
+               the card's own bottom edge (see .btn-sub below) rather than
+               floating as a separate pill with a visible gap beneath it. */
+            padding: 5px 4px 0;
             background: transparent;
             position: relative;
             cursor: pointer;
             transition: all 0.2s;
             min-height: 84px;
-            /* Was overflow:hidden, which clipped the SUB button's outer glow
-               flat against the card edge. The translucent panel uses
-               border-radius:inherit, so nothing here needs clipping. */
             overflow: visible;
         }
 
@@ -791,14 +784,31 @@
             position: relative;
         }
 
+        /* Inverted badge: a solid white circle with the jersey NUMBER
+           colored to match that team's jersey, rather than plain white/dark
+           theme text on a transparent card. Reads at a glance as "this
+           number belongs to the team wearing this color" the way an actual
+           jersey badge would. */
         .player-jersey {
             font-family: 'Oswald', -apple-system, 'Arial Black', sans-serif;
-            font-size: 23px;
-            font-weight: 600;
-            margin-bottom: 1px;
+            font-size: 17px;
+            font-weight: 700;
+            margin-bottom: 2px;
             color: var(--text-primary);
             position: relative;
+            width: 34px;
+            height: 34px;
+            border-radius: 50%;
+            background: #ffffff;
+            border: 1px solid rgba(0, 0, 0, 0.15);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            flex-shrink: 0;
         }
+
+        #visitor-court .player-jersey { color: var(--team1-color); }
+        #home-court .player-jersey { color: var(--team2-color); }
 
         .player-name {
             font-size: 12px;
@@ -969,18 +979,14 @@
            runs the full height (down alongside the court AND the rotation
            cards), and a main column on the right holding the court block plus
            both teams' rotation cards stacked. */
+        /* The bench used to be a permanent 96-140px sidebar column, which on
+           a phone ate a meaningful slice of the court's width — exactly the
+           real estate the jersey numbers, names and positions need to stay
+           readable. The bench now lives behind each team's half as a
+           slide-up sheet (see .bench-sheet below), so the court gets the
+           full screen width and the bench only appears when asked for. */
         .uc-layout {
-            display: grid;
-            grid-template-columns: 96px 1fr;
-            gap: 10px;
-            align-items: start;
-        }
-
-        @media (min-width: 640px) {
-            .uc-layout {
-                grid-template-columns: 140px 1fr;
-                gap: 14px;
-            }
+            display: block;
         }
 
         .uc-main {
@@ -994,114 +1000,187 @@
             .uc-main { gap: 20px; }
         }
 
-        /* The bench rail is its own card, sticky so it stays in view as the
-           user scrolls the taller rotation column beside it. */
-        .uc-bench-rail {
+        /* ═══════════════════════════════════════════════════════════════════
+           BENCH SHEET — the bench sits behind each team's half of the court
+           and slides up on demand, instead of permanently occupying a side
+           column. Kept deliberately plain: a solid team-colour header bar,
+           a flat card grid, one clear open/close motion — no gradients or
+           glow beyond what the rest of the court UI already uses.
+           ═══════════════════════════════════════════════════════════════════ */
+
+        .bench-sheet-backdrop {
+            position: fixed;
+            inset: 0;
+            background: rgba(0, 0, 0, 0.5);
+            opacity: 0;
+            pointer-events: none;
+            transition: opacity 0.2s ease;
+            z-index: 40;
+        }
+
+        .bench-sheet-backdrop.open {
+            opacity: 1;
+            pointer-events: auto;
+        }
+
+        .bench-sheet {
+            position: fixed;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            max-height: 62vh;
             display: flex;
             flex-direction: column;
             background: var(--card-bg);
-            border: 1px solid var(--border-color);
-            border-radius: 12px;
-            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+            border-radius: 14px 14px 0 0;
+            box-shadow: 0 -6px 18px rgba(0, 0, 0, 0.35);
+            transform: translateY(100%);
+            transition: transform 0.22s ease;
+            z-index: 41;
         }
 
-        @media (min-width: 1024px) {
-            .uc-bench-rail {
-                overflow: hidden;
-                position: sticky;
-                top: 10px;
-                max-height: calc(100vh - 20px);
-            }
+        .bench-sheet.open {
+            transform: translateY(0);
         }
 
-        .uc-bench-half {
-            flex: 1;
-            display: flex;
-            flex-direction: column;
-            min-height: 0;
-        }
-
-        .uc-bench-half + .uc-bench-half {
-            border-top: 2px solid var(--border-color);
-        }
-
-        .uc-bench-half-label {
-            font-size: 11px;
-            font-weight: 800;
-            text-transform: uppercase;
-            letter-spacing: 0.4px;
-            text-align: center;
-            padding: 5px 2px;
-            color: white;
-        }
-
-        .uc-bench-half-subs {
-            font-size: 11px;
-            text-align: center;
-            padding: 2px 2px 4px;
-            color: var(--text-secondary);
-            font-weight: 700;
-        }
-
-        .uc-bench-rail .bench {
-            grid-template-columns: 1fr;
-            gap: 4px;
-            padding: 4px;
-            margin-bottom: 0;
-            flex: 1;
-            overflow-y: auto;
-            align-content: start;
-        }
-
-        .uc-bench-rail .bench-player {
+        .bench-sheet-header {
             display: flex;
             align-items: center;
-            gap: 8px;
-            padding: 5px 8px;
-            text-align: left;
-            min-height: 44px;
+            gap: 10px;
+            padding: 10px 14px;
+            color: white;
+            border-radius: 14px 14px 0 0;
+            flex-shrink: 0;
         }
 
-        .uc-bench-rail .bench-jersey {
-            font-size: 24px;
-            flex: 0 0 34%;
+        .bench-sheet-header .bench-sheet-title {
+            font-size: 13px;
+            font-weight: 800;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .bench-sheet-header .bench-sheet-subs {
+            font-size: 12px;
+            font-weight: 700;
+            opacity: 0.9;
+        }
+
+        .bench-sheet-close {
+            margin-left: auto;
+            width: 26px;
+            height: 26px;
+            line-height: 26px;
             text-align: center;
+            border-radius: 999px;
+            background: rgba(255, 255, 255, 0.22);
+            color: white;
+            font-size: 15px;
+            font-weight: 700;
+            cursor: pointer;
+            flex-shrink: 0;
+        }
+
+        .bench-sheet-body {
+            overflow-y: auto;
+            padding: 10px;
+        }
+
+        /* Compact stat cards — small enough to fit several per row, but each
+           value (jersey, name, K/A/E) stays independently legible rather
+           than being crushed into one run-on line. */
+        .bench-sheet-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(96px, 1fr));
+            gap: 8px;
+        }
+
+        .bench-sheet-grid .bench-player {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 2px;
+            padding: 7px 6px;
+            text-align: center;
+        }
+
+        .bench-sheet-grid .bench-jersey {
+            font-size: 16px;
             margin-bottom: 0;
         }
 
-        .uc-bench-rail .bench-name {
-            font-size: 12px;
-            flex: 1;
-            min-width: 0;
-            text-align: left;
-            line-height: 1.25;
-            display: -webkit-box;
+        .bench-sheet-grid .bench-name {
+            font-size: 11px;
+            line-height: 1.2;
+            height: auto;
             -webkit-line-clamp: 2;
-            -webkit-box-orient: vertical;
-            overflow: hidden;
-            word-break: break-word;
         }
 
-        .uc-bench-rail .bench-position {
-            display: none;
+        .bench-sheet-grid .bench-position {
+            display: block;
+            font-size: 9px;
+            color: var(--text-secondary);
+            font-style: italic;
         }
 
-        /* Roster/Load/Save, merged into the bottom of each bench-half card
-           (not a separate box), stacked vertically so they fit the narrow
-           rail width. */
+        .bench-sheet-grid .bench-live-stats {
+            margin-top: 2px;
+            font-family: 'Oswald', -apple-system, 'Arial Black', sans-serif;
+            font-size: 10px;
+            letter-spacing: 0.3px;
+            color: var(--text-secondary);
+            white-space: nowrap;
+        }
+
+        .bench-sheet-empty {
+            grid-column: 1 / -1;
+            text-align: center;
+            padding: 16px 8px;
+            color: var(--text-secondary);
+            font-size: 12px;
+            font-style: italic;
+        }
+
+        /* Roster/Load/Save controls, merged into the bottom of the sheet. */
         .uc-bench-rotation-controls {
             display: flex;
             flex-direction: column;
             gap: 4px;
-            padding: 5px;
+            padding: 8px 10px 12px;
             border-top: 2px solid var(--border-color);
             flex-shrink: 0;
         }
 
         .uc-bench-rotation-controls button {
             width: 100%;
-            padding: 6px 4px;
-            font-size: 10px;
+            padding: 7px 4px;
+            font-size: 11px;
+        }
+
+        /* The toggle that opens a team's sheet, placed in that team's own
+           header bar next to the venue badge. Reuses the header's existing
+           translucent-chip look (same treatment as the opponent dropdown)
+           rather than inventing a new style. */
+        .bench-sheet-toggle {
+            flex: 0 0 auto;
+            /* Keeps the chip pinned to the header's right edge even when the
+               venue badge before it is hidden (venue not chosen yet). */
+            margin-left: auto;
+            display: flex;
+            align-items: center;
+            gap: 5px;
+            padding: 5px 10px;
+            border-radius: 999px;
+            border: 1px solid rgba(255, 255, 255, 0.55);
+            background: rgba(255, 255, 255, 0.18);
+            color: white;
+            font-size: 12px;
+            font-weight: 700;
+            cursor: pointer;
+        }
+
+        .bench-sheet-toggle .bench-sheet-toggle-count {
+            font-family: 'Oswald', -apple-system, 'Arial Black', sans-serif;
         }
 
         /* The court block is one continuous unit: a slim team-name header at
@@ -1355,13 +1434,26 @@
             border-color: var(--team2-color);
         }
 
+        /* Same inverted badge treatment as the court cards, on the bench. */
         .bench-jersey {
             font-family: 'Oswald', -apple-system, 'Arial Black', sans-serif;
-            font-size: 20px;
-            font-weight: 600;
+            font-size: 17px;
+            font-weight: 700;
             color: var(--text-primary);
             margin-bottom: 5px;
+            width: 32px;
+            height: 32px;
+            border-radius: 50%;
+            background: #ffffff;
+            border: 1px solid rgba(0, 0, 0, 0.15);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            flex-shrink: 0;
         }
+
+        #visitor-bench .bench-jersey { color: var(--team1-color); }
+        #home-bench .bench-jersey { color: var(--team2-color); }
 
         .bench-name {
             font-size: 11px;
@@ -2001,37 +2093,47 @@
                 </div>
             </div>
 
+        <!-- Bench sheets: each team's bench lives BEHIND that team's half of
+             the court and slides up on demand from its header toggle,
+             instead of permanently reserving a side column. Sits outside
+             .uc-layout since these are viewport-fixed overlays, not part
+             of the court's own document flow. -->
+        <div class="bench-sheet-backdrop" id="bench-sheet-backdrop" onclick="closeAllBenchSheets()"></div>
+
+        <div class="bench-sheet" id="visitor-bench-section">
+            <div class="bench-sheet-header" style="background: var(--team1-color);">
+                <span class="bench-sheet-title">Opponent Bench</span>
+                <span class="bench-sheet-subs">Subs: <span id="visitor-subs-remaining">12</span></span>
+                <span class="bench-sheet-close" onclick="closeBenchSheet('visitor')">✕</span>
+            </div>
+            <div class="bench-sheet-body">
+                <div class="bench-sheet-grid" id="visitor-bench"></div>
+            </div>
+            <div class="uc-bench-rotation-controls">
+                <button class="btn-roster" onclick="openRoster('visitor')">Roster</button>
+                <button class="btn-save" onclick="saveRotation('visitor')">Save Rotation</button>
+            </div>
+        </div>
+
+        <div class="bench-sheet" id="home-bench-section">
+            <div class="bench-sheet-header" style="background: var(--team2-color);">
+                <span class="bench-sheet-title">Tampa Prep Bench</span>
+                <span class="bench-sheet-subs">Subs: <span id="home-subs-remaining">12</span></span>
+                <span class="bench-sheet-close" onclick="closeBenchSheet('home')">✕</span>
+            </div>
+            <div class="bench-sheet-body">
+                <div class="bench-sheet-grid" id="home-bench"></div>
+            </div>
+            <div class="uc-bench-rotation-controls">
+                <button class="btn-roster" onclick="openRoster('home')">Roster</button>
+                <button class="btn-save" onclick="saveRotation('home')">Save Rotation</button>
+            </div>
+        </div>
+
         <div class="left-panel">
             <div class="tab-content active" id="court-tab">
                 <div class="uc-layout">
-                    <!-- Left rail: both benches, running the full height down
-                         alongside the court AND the rotation cards. Each
-                         bench card ends with its own vertically-stacked
-                         Roster/Load/Save controls, merged into the same box. -->
-                    <div class="uc-bench-rail">
-                        <div class="uc-bench-half" id="visitor-bench-section">
-                            <div class="uc-bench-half-label" style="background: var(--team1-color);">Opponent Bench</div>
-                            <div class="uc-bench-half-subs">Subs: <span id="visitor-subs-remaining" style="color: var(--team1-color);">12</span></div>
-                            <div class="bench" id="visitor-bench"></div>
-                            <div class="uc-bench-rotation-controls">
-                                <button class="btn-roster" onclick="openRoster('visitor')">Roster</button>
-                                <button class="btn-save" onclick="saveRotation('visitor')">Save Rotation</button>
-                                <div class="uc-rotation-list" id="visitor-rotation-list"></div>
-                            </div>
-                        </div>
-                        <div class="uc-bench-half">
-                            <div class="uc-bench-half-label" style="background: var(--team2-color);">Tampa Prep Bench</div>
-                            <div class="uc-bench-half-subs">Subs: <span id="home-subs-remaining" style="color: var(--team2-color);">12</span></div>
-                            <div class="bench" id="home-bench"></div>
-                            <div class="uc-bench-rotation-controls">
-                                <button class="btn-roster" onclick="openRoster('home')">Roster</button>
-                                <button class="btn-save" onclick="saveRotation('home')">Save Rotation</button>
-                                <div class="uc-rotation-list" id="home-rotation-list"></div>
-                            </div>
-                        </div>
-                    </div>
-
-                    <!-- Right column: the shared court, with a slim team-name
+                    <!-- The court, with a slim team-name
                          header at each outer edge and the combined score
                          cluster sitting at the net in the middle. The
                          visitor header's own opponent-select dropdown
@@ -2049,7 +2151,12 @@
                                     <input type="text" id="visitor-generic-name-input" class="uc-team-header-select blink-invite" style="display: none; flex: 0 0 120px;" placeholder="Team name" oninput="updateGenericVisitorName(this.value)" title="Rename this generic opponent">
                                     <h2 class="team-name" id="visitor-name" style="display: none;">Opponent</h2>
                                     <span class="venue-badge" id="visitor-venue-badge" style="display: none;"></span>
+                                    <span class="bench-sheet-toggle" onclick="toggleBenchSheet('visitor')" title="Opponent bench">
+                                        🪑 <span class="bench-sheet-toggle-count" id="visitor-bench-toggle-count">12</span>
+                                    </span>
                                 </div>
+
+                                <div class="uc-team-rotation-list" id="visitor-rotation-list"></div>
 
                                 <div class="uc-court-area">
                                     <div class="uc-court-diagram">
@@ -2111,7 +2218,12 @@
                                     </svg>
                                     <h2 class="team-name" id="home-name" style="font-size: 15px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">Tampa Prep</h2>
                                     <span class="venue-badge" id="home-venue-badge" style="display: none;"></span>
+                                    <span class="bench-sheet-toggle" onclick="toggleBenchSheet('home')" title="Tampa Prep bench">
+                                        🪑 <span class="bench-sheet-toggle-count" id="home-bench-toggle-count">12</span>
+                                    </span>
                                 </div>
+
+                                <div class="uc-team-rotation-list" id="home-rotation-list"></div>
                             </div>
                         </div>
                     </div>
@@ -3752,14 +3864,23 @@
             const onCourt = state[team].positions.filter(p => p !== null).map(p => p.id);
             const benchPlayers = state[team].roster.filter(p => !onCourt.includes(p.id));
 
-            const liveBenchHtml = benchPlayers.map(player => `
-                <div class="bench-player" data-player-id="${player.id}" onclick="selectBenchPlayer('${team}', ${player.id}, event)">
-                    <div class="bench-jersey">${player.jersey || player.name.substring(0, 2).toUpperCase()}</div>
-                    <div class="bench-name">${player.name}</div>
-                    <div class="bench-position">${player.position || ''}</div>
-                </div>
-            `).join('');
+            const liveBenchHtml = benchPlayers.length === 0
+                ? '<div class="bench-sheet-empty">Everyone is on the court.</div>'
+                : benchPlayers.map(player => {
+                    const stats = player.stats || {};
+                    return `
+                    <div class="bench-player" data-player-id="${player.id}" onclick="selectBenchPlayer('${team}', ${player.id}, event)">
+                        <div class="bench-jersey">${player.jersey || player.name.substring(0, 2).toUpperCase()}</div>
+                        <div class="bench-name">${player.name}</div>
+                        <div class="bench-position">${player.position || ''}</div>
+                        <div class="bench-live-stats">K ${stats.K || 0} · A ${stats.AST || 0} · E ${stats.E || 0}</div>
+                    </div>
+                `;
+                }).join('');
             if (bench) bench.innerHTML = liveBenchHtml;
+
+            const toggleCount = document.getElementById(`${team}-bench-toggle-count`);
+            if (toggleCount) toggleCount.textContent = benchPlayers.length;
 
             // Mirror into the Rotation Strategy planner's bench rail. Read-only —
             // substitutions there happen through the rotation editor's own
@@ -5320,23 +5441,28 @@
          * beneath its Save Rotation button — name on the left, Load on the
          * right, and a delete affordance. Load dims while a set is live.
          */
+        /**
+         * Renders straight into the always-visible list under that team's
+         * name — no toggle, no accordion, nothing to open first. A team
+         * with no saved rotations gets an empty container (zero height),
+         * not a placeholder message, so the court header stays uncluttered
+         * until there's actually something to load.
+         */
         function renderRotationRail(team) {
             const container = document.getElementById(`${team}-rotation-list`);
             if (!container) return;
 
             const rotations = state[team].rotations || [];
             if (rotations.length === 0) {
-                container.innerHTML = '<div class="uc-rotation-empty">No saved rotations</div>';
+                container.innerHTML = '';
                 return;
             }
 
             container.innerHTML = rotations.map((rot, idx) => `
-                <div class="uc-rotation-row">
+                <div class="uc-team-rotation-row">
                     <span class="uc-rotation-name" title="${escapeForAttr(rot.name)}">${rot.name}</span>
-                    <div class="uc-rotation-actions">
-                        <button class="btn-load set-lock-btn" onclick="applyRotation('${team}', ${idx})">Load</button>
-                        <button class="btn-delete" style="background: #6b7280;" onclick="deleteRotation('${team}', ${idx})" title="Delete this rotation">×</button>
-                    </div>
+                    <button class="btn-load set-lock-btn" onclick="applyRotation('${team}', ${idx})">Load</button>
+                    <button class="btn-delete" style="background: #6b7280;" onclick="deleteRotation('${team}', ${idx})" title="Delete this rotation">×</button>
                 </div>
             `).join('');
 
@@ -5434,6 +5560,49 @@
             handlePreGameTap(team, positionIdx);
         }
 
+        /* ═══════════════════════════════════════════════════════════════════
+           BENCH SHEET open/close — the bench lives behind each team's half
+           of the court now, so these control the slide-up panel instead of
+           the old sidebar just always being visible.
+           ═══════════════════════════════════════════════════════════════════ */
+
+        function openBenchSheet(team) {
+            const sheet = document.getElementById(`${team}-bench-section`);
+            const backdrop = document.getElementById('bench-sheet-backdrop');
+            if (sheet) sheet.classList.add('open');
+            if (backdrop) backdrop.classList.add('open');
+        }
+
+        function closeBenchSheet(team) {
+            const sheet = document.getElementById(`${team}-bench-section`);
+            if (sheet) sheet.classList.remove('open');
+            // The backdrop is shared, so only drop it once NEITHER sheet is
+            // still open — closing one shouldn't dim the other shut too.
+            const otherTeam = team === 'home' ? 'visitor' : 'home';
+            const other = document.getElementById(`${otherTeam}-bench-section`);
+            const backdrop = document.getElementById('bench-sheet-backdrop');
+            if (backdrop && !(other && other.classList.contains('open'))) {
+                backdrop.classList.remove('open');
+            }
+        }
+
+        function closeAllBenchSheets() {
+            closeBenchSheet('home');
+            closeBenchSheet('visitor');
+        }
+
+        function toggleBenchSheet(team) {
+            const sheet = document.getElementById(`${team}-bench-section`);
+            if (sheet && sheet.classList.contains('open')) {
+                closeBenchSheet(team);
+            } else {
+                // Only one team's bench makes sense open at a time — the
+                // other team's sheet would just be in the way underneath it.
+                closeAllBenchSheets();
+                openBenchSheet(team);
+            }
+        }
+
         // Which court box the coach is part-way through acting on before a set
         // starts. stage: 'selected' (team colour) -> 'swapping' (green).
         let preGameSelection = null;
@@ -5449,6 +5618,7 @@
             document.querySelectorAll('.position').forEach(p => {
                 p.classList.remove('can-receive', 'pos-selected', 'pos-swapping');
             });
+            closeAllBenchSheets();
             if (refresh) {
                 updateCourt('home');
                 updateCourt('visitor');
@@ -5468,6 +5638,10 @@
                     // Greens the bench and marks this box as the receiver,
                     // reusing the existing assignment machinery.
                     openSwapPlayer(team, positionIdx);
+                    // The bench now lives behind the court rather than
+                    // always being visible, so the coach needs it surfaced
+                    // the instant there's someone to tap into the slot.
+                    openBenchSheet(team);
                     return;
                 }
                 // Third tap on the same box — back to neutral.
@@ -5577,7 +5751,15 @@
                 player.style.cursor = 'pointer';
                 player.style.transform = 'scale(1.05)';
             });
-            
+
+            // An empty "Click to assign" slot is unambiguous — there's
+            // nothing to choose between select-vs-swap, so it only takes one
+            // tap. That one tap should surface the roster immediately rather
+            // than arming state invisibly behind a still-closed sheet, which
+            // is exactly the bug class the filled-slot two-tap flow already
+            // fixed for the "swapping" stage.
+            openBenchSheet(team);
+
             document.querySelectorAll(`#${team}-court .position`).forEach(pos => {
                 pos.classList.remove('can-receive');
             });
@@ -5831,6 +6013,7 @@
                 // the box green after the swap, and the NEXT tap anywhere on
                 // that court was then read as "swap with the armed box".
                 preGameSelection = null;
+                closeBenchSheet(team);
 
                 updateCourt(team);
                 updateBench(team);
