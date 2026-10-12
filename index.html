@@ -9,7 +9,7 @@
          fetches this tag fresh (bypassing cache) on every app launch and
          reloads automatically if it doesn't match. Reloading does NOT clear
          localStorage, so saved rosters/history/rotations are unaffected. -->
-    <meta name="app-version" content="2026-09-09-2">
+    <meta name="app-version" content="2026-10-11-2">
     <!-- GitHub Pages doesn't allow custom HTTP cache headers, and iOS
          "Add to Home Screen" apps can cache more aggressively than a normal
          browser tab. These meta tags are a second, independent line of
@@ -3525,7 +3525,13 @@
             }
         }
 
+        // Set while a restore is reloading the page: the pagehide / visibilitychange /
+        // interval autosaves would otherwise overwrite the restored data with the
+        // live (pre-restore) state before the reload completes.
+        let autosaveSuspended = false;
+
         function saveToLocalStorage() {
+            if (autosaveSuspended) return;
             try {
                 const payload = getPersistableState();
                 localStorage.setItem(STORAGE_KEY, JSON.stringify(payload));
@@ -3617,6 +3623,7 @@
                     const payload = JSON.parse(e.target.result);
                     if (!payload || !payload.state) throw new Error('missing state');
                     localStorage.setItem(STORAGE_KEY, JSON.stringify(payload));
+                    autosaveSuspended = true;
                     location.reload();
                 } catch (err) {
                     alert('That file could not be read as a Court Commander backup.');
@@ -3629,6 +3636,7 @@
         function clearSavedData() {
             if (!confirmAction('Erase all saved data from this browser? This cannot be undone. Download a backup first if you want to keep it.')) return;
             localStorage.removeItem(STORAGE_KEY);
+            autosaveSuspended = true;
             location.reload();
         }
 
