@@ -1,0 +1,15 @@
+{
+  "name": "court-commander",
+  "private": true,
+  "description": "Characterization tests for the frozen index.html (Phase 0.5). No runtime dependencies.",
+  "scripts": {
+    "test": "playwright test",
+    "test:file": "playwright test",
+    "test:known-bugs": "playwright test --grep \"KNOWN_BUG|MISSING_RULE\"",
+    "test:screens": "playwright test screens.spec.js",
+    "anonymize": "node scripts/anonymize-export.js"
+  },
+  "devDependencies": {
+    "@playwright/test": "1.49.1"
+  }
+}

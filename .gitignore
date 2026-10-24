@@ -1,0 +1,13 @@
+
+# Dependencies and test output
+node_modules/
+test-results/
+playwright-report/
+
+# Real exports contain named players (minors). Never commit them.
+fixtures/real/
+*.backup.json
+court-commander-backup-*.json
+roster-*.json
+court-commander-*-team-bank.json
+*.anon.json
