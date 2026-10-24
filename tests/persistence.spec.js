@@ -86,13 +86,15 @@ test.describe('save and restore', () => {
     expect(await app.ev(() => [isRosterReadOnly(), document.querySelectorAll('.game-lock-btn').length])).toEqual([true, 0]);   // .game-lock-btn selector matches no element in markup
   });
 
-  test('[KNOWN_BUG] lost in-flight point: reload while the stat prompt is open keeps the score but not the timeline event', async ({ app }) => {
+  // Was KNOWN_BUG (Stage 2, U5): the point survived a reload but its timeline event did not.
+  // Now the missing event is rebuilt on load as an unattributed point (PT), with no new persisted key.
+  test('[OBSERVED] U5 regression: reload while the stat prompt is open keeps the score and recovers the timeline event', async ({ app }) => {
     await app.open();
     await app.startMatch();
     await app.ev(() => addScore('home'));
     await app.ev(() => saveToLocalStorage());
     await app.reload();
-    expect(await app.ev(() => [state.home.score, state.matchTimeline.length])).toEqual([1, 0]);
+    expect(await app.ev(() => [state.home.score, state.matchTimeline.length, state.matchTimeline[0].code])).toEqual([1, 1, 'PT']);
   });
 
   test('[OBSERVED] object identity: positions and roster entries are the same object in session, separate copies after reload', async ({ app }) => {

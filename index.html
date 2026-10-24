@@ -9,7 +9,7 @@
          fetches this tag fresh (bypassing cache) on every app launch and
          reloads automatically if it doesn't match. Reloading does NOT clear
          localStorage, so saved rosters/history/rotations are unaffected. -->
-    <meta name="app-version" content="2026-10-24-1">
+    <meta name="app-version" content="2026-10-24-2">
     <!-- GitHub Pages doesn't allow custom HTTP cache headers, and iOS
          "Add to Home Screen" apps can cache more aggressively than a normal
          browser tab. These meta tags are a second, independent line of
@@ -277,7 +277,7 @@
 
         .btn-settings { background: #8b5cf6; }
         .btn-export { background: #10b981; }
-        .btn-score { background: #10b981; font-size: 18px; padding: 8px 16px; }
+        .btn-score { background: #10b981; font-size: 18px; padding: 8px 16px; min-width: 56px; min-height: 56px; }
         .btn-undo { background: #f59e0b; }
         /* Pre-set lineup building. Tap 1 highlights in the team's own colour,
            tap 2 turns green — the same green used for bench selection during
@@ -3731,6 +3731,7 @@
 
         function init() {
             const restored = loadFromLocalStorage();
+            if (restored) recoverInFlightPoint();
 
             // A fresh session starts with an empty visitor court — the
             // coach picks either a real team or "New Opponent" from the
@@ -3870,7 +3871,28 @@
             refreshSubHighlight();
             refreshPreGameHighlight();
             applySubConfirmationFlash();
+            fitCourtNames(court);
         }
+
+        // Names are clamped to two lines. A long hyphenated or compound name
+        // wraps to three and loses its tail, which can make two players look
+        // alike, so shrink only the names that overflow (floor 9px). Skipped
+        // while the court is hidden; the resize listener re-fits it.
+        function fitCourtNames(court) {
+            court.querySelectorAll('.player-name').forEach(el => {
+                el.style.fontSize = '';
+                let size = 12;
+                while (el.clientHeight > 0 && size > 9 &&
+                       (el.scrollHeight > el.clientHeight + 1 || el.scrollWidth > el.clientWidth + 1)) {
+                    size -= 0.5;
+                    el.style.fontSize = size + 'px';
+                }
+            });
+        }
+
+        window.addEventListener('resize', () => {
+            ['home', 'visitor'].forEach(team => fitCourtNames(document.getElementById(`${team}-court`)));
+        });
 
         function updateBench(team) {
             const bench = document.getElementById(`${team}-bench`);
@@ -4028,7 +4050,61 @@
             });
         }
 
+        // True once either team has won enough sets for the chosen format.
+        // Only meaningful between sets: setHistory holds completed sets.
+        function isMatchDecided() {
+            const setsToWin = Math.ceil(state.matchFormat / 2);
+            const setsWonHome = state.setHistory.filter(s => s.homeScore > s.visitorScore).length;
+            const setsWonVisitor = state.setHistory.filter(s => s.visitorScore > s.homeScore).length;
+            return setsWonHome >= setsToWin || setsWonVisitor >= setsToWin;
+        }
+
+        // addScore() writes the score to storage before the stat prompt
+        // finishes, so a reload while the prompt is open keeps the score but
+        // loses the timeline event. If exactly one point is missing from the
+        // current set's timeline, rebuild it as an unattributed point (PT /
+        // OPP, the same code used when stat tracking is off). Nothing new is
+        // persisted; the event goes into the existing matchTimeline.
+        function recoverInFlightPoint() {
+            if (!state.gameStarted) return;
+            const setNumber = state.setHistory.length + 1;
+            const setEvents = state.matchTimeline.filter(e => e.type === 'point' && e.setNumber === setNumber);
+            if (state.home.score + state.visitor.score !== setEvents.length + 1) return;
+            const last = setEvents[setEvents.length - 1];
+            const prevHome = last ? last.homeScore : 0;
+            const prevVisitor = last ? last.visitorScore : 0;
+            let team = null;
+            if (state.home.score === prevHome + 1 && state.visitor.score === prevVisitor) team = 'home';
+            else if (state.visitor.score === prevVisitor + 1 && state.home.score === prevHome) team = 'visitor';
+            if (!team) return;
+            // The previous point's scorer was serving; before the set's first
+            // point the toss/alternation decides.
+            const servingBefore = last ? last.scoringTeam : (firstServerForSet(setNumber) || team);
+            state.matchTimeline.push({
+                id: Date.now() + Math.random(),
+                type: 'point',
+                setNumber: setNumber,
+                seq: state.matchTimeline.length,
+                scoringTeam: team,
+                homeScore: state.home.score,
+                visitorScore: state.visitor.score,
+                servingTeamBefore: servingBefore,
+                homePositions: snapshotCourt('home'),
+                visitorPositions: snapshotCourt('visitor'),
+                code: team === 'home' ? 'PT' : 'OPP',
+                playerName: null,
+                playerJersey: null,
+                timestamp: new Date().toISOString()
+            });
+        }
+
         function startGame(opts) {
+            // Between sets of a decided match the only move is End Match;
+            // a further set would play on top of a finished match.
+            if (state.matchInProgress && !state.gameStarted && isMatchDecided()) {
+                alert('This match is decided, so no further set can start.\n\nTap End Match to save it and unlock rosters.');
+                return;
+            }
             const homeError = validateTeamReady('home', 'Home');
             const visitorError = validateTeamReady('visitor', 'Opponent');
             if (homeError || visitorError) {
@@ -4530,14 +4606,21 @@
                 if (state.matchInProgress) {
                     // Between sets. The only two sensible moves are to play
                     // the next set or to close the match out — planning tools
-                    // stay hidden because the lineup is locked anyway.
+                    // stay hidden because the lineup is locked anyway. Once
+                    // the match is decided, End Match is the only move left.
                     const nextSet = state.setHistory.length + 1;
-                    if (startBtn) startBtn.textContent = `▶️ Start Set ${nextSet}`;
+                    if (startBtn) {
+                        startBtn.textContent = `▶️ Start Set ${nextSet}`;
+                        startBtn.style.display = isMatchDecided() ? 'none' : '';
+                    }
                     if (simulateBtn) simulateBtn.style.display = 'none';
                     if (endBtn) endBtn.style.display = '';
                 } else {
                     // Pre-match setup.
-                    if (startBtn) startBtn.textContent = '▶️ Start Match';
+                    if (startBtn) {
+                        startBtn.textContent = '▶️ Start Match';
+                        startBtn.style.display = '';
+                    }
                     if (simulateBtn) simulateBtn.style.display = '';
                     if (endBtn) endBtn.style.display = 'none';
                 }
@@ -6886,7 +6969,7 @@
 
             if (setsWonHome >= setsToWin || setsWonVisitor >= setsToWin) {
                 const winnerName = setsWonHome > setsWonVisitor ? homeTeamName : visitorTeamName;
-                alert(`Set ${setNumber} final score recorded:\n${homeTeamName}: ${state.setHistory[setNumber - 1].homeScore}\n${visitorTeamName}: ${state.setHistory[setNumber - 1].visitorScore}\n\n🏆 Match complete! ${winnerName} wins ${Math.max(setsWonHome, setsWonVisitor)}–${Math.min(setsWonHome, setsWonVisitor)} (best of ${state.matchFormat})\n\nOpen Match History to save this match before starting a new one.`);
+                alert(`Set ${setNumber} final score recorded:\n${homeTeamName}: ${state.setHistory[setNumber - 1].homeScore}\n${visitorTeamName}: ${state.setHistory[setNumber - 1].visitorScore}\n\n🏆 Match complete! ${winnerName} wins ${Math.max(setsWonHome, setsWonVisitor)}–${Math.min(setsWonHome, setsWonVisitor)} (best of ${state.matchFormat})\n\nTap End Match to save this match and unlock rosters.`);
             } else {
                 alert(`Set ${setNumber} final score recorded:\n${homeTeamName}: ${state.setHistory[setNumber - 1].homeScore}\n${visitorTeamName}: ${state.setHistory[setNumber - 1].visitorScore}\n\nSets: ${homeTeamName} ${setsWonHome} – ${setsWonVisitor} ${visitorTeamName} (best of ${state.matchFormat}, first to ${setsToWin})`);
             }
