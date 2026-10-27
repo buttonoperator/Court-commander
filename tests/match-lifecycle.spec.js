@@ -60,13 +60,16 @@ test.describe('set history, match end, locking', () => {
     expect(app.lastDialog().message).toContain('Match complete');
   });
 
-  test('[KNOWN_BUG] after the match is decided the app still lets another set start', async ({ app }) => {
+  // Was KNOWN_BUG (Stage 2, U4): startGame used to start another set after the match was decided.
+  test('[OBSERVED] U4 regression: after the match is decided no further set can start; End Match is offered', async ({ app }) => {
     await app.open();
     await app.startMatch({ format: 1 });
     await app.points('home', 1);
     await app.ev(() => startNewSet());
+    app.clearDialogs();
     await app.ev(() => startGame({ rotationChosen: true }));
-    expect(await app.ev(() => state.gameStarted)).toBe(true);
+    expect(await app.ev(() => state.gameStarted)).toBe(false);
+    expect(app.lastDialog().message).toContain('match is decided');
   });
 
   test('[OBSERVED] match format change is locked during a match and clamps invalid values on load', async ({ app }) => {

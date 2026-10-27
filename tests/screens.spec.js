@@ -63,6 +63,6 @@ test.describe('update mechanism', () => {
 
   test('[OBSERVED] app-version meta is present and matches APP_VERSION', async ({ app }) => {
     await app.open();
-    expect(await app.page.evaluate(() => [document.querySelector('meta[name="app-version"]').content, APP_VERSION])).toEqual(['2026-10-24-1', '2026-10-24-1']);
+    expect(await app.page.evaluate(() => [document.querySelector('meta[name="app-version"]').content, APP_VERSION])).toEqual(['2026-10-27-1', '2026-10-27-1']);
   });
 });
