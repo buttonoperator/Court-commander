@@ -5,11 +5,12 @@ const http = require('http');
 const fs = require('fs');
 const path = require('path');
 const root = path.resolve(__dirname, '..', '..');
+const entry = process.env.CC_ENTRY || 'index.html';
 const types = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript', '.json': 'application/json' };
 http.createServer((req, res) => {
   const p = decodeURIComponent(req.url.split('?')[0]);
   if (p !== '/' && p !== '/index.html') { res.writeHead(404); return res.end('not found'); }
-  const file = path.join(root, 'index.html');
+  const file = path.join(root, entry);
   res.writeHead(200, { 'Content-Type': types[path.extname(file)] || 'application/octet-stream', 'Cache-Control': 'no-store' });
   fs.createReadStream(file).pipe(res);
 }).listen(Number(process.env.PORT) || 4173, process.env.HOST || '127.0.0.1');

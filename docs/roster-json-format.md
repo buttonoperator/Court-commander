@@ -7,9 +7,9 @@ How to turn a roster screenshot into a file or pasted text that Court Commander 
 1. Screenshot the opponent's roster (the roster page, the program, a MaxPreps or school-site table).
 2. Give Claude the screenshot and the prompt below.
 3. Copy Claude's JSON reply.
-4. In Court Commander: **Manage Roster** (open the Home or Visitor roster, depending on where the team should be saved) > **Backup & Sharing** > **Paste JSON** > paste > **Import Pasted JSON**. Or save the reply as a `.json` file and use **Import**.
+4. In Court Commander: **Teams** > **Import** > choose **Opponent** or **Our team** > paste the reply > **Preview**. Or use **File** to pick a saved `.json`.
 5. Read the preview. It lists every player the app understood, plus warnings (skipped rows, duplicate jerseys). Confirm only if it matches the screenshot.
-6. The team is saved to that side's Saved Teams / Saved Opponents list. Import never changes what is on court, and it is disabled while a match is in progress (End Match first).
+6. Confirm with **Import**. The team appears under Teams. Import never changes a match in progress: a live match uses its own copy of both rosters.
 
 Names, jersey numbers and grades from a screenshot can be misread. Compare the preview with the screenshot before confirming. A wrong entry can be fixed afterward in Manage Roster.
 

@@ -1,15 +1,18 @@
 {
   "name": "court-commander",
   "private": true,
-  "description": "Characterization tests for the frozen index.html (Phase 0.5). No runtime dependencies.",
+  "description": "Court Commander: volleyball match control for Tampa Prep. Single-file web app built from src/.",
   "scripts": {
-    "test": "playwright test",
-    "test:file": "playwright test",
-    "test:known-bugs": "playwright test --grep \"KNOWN_BUG|MISSING_RULE\"",
-    "test:screens": "playwright test screens.spec.js",
-    "anonymize": "node scripts/anonymize-export.js"
+    "build": "node scripts/build.mjs",
+    "test:unit": "node --test tests/unit/*.test.mjs",
+    "test:e2e": "playwright test",
+    "test": "npm run test:unit && npm run build && playwright test",
+    "test:legacy": "CC_ENTRY=legacy/index.v1.html playwright test --config legacy/playwright.legacy.config.js"
   },
   "devDependencies": {
-    "@playwright/test": "1.49.1"
+    "@fontsource/barlow-condensed": "^5.3.0",
+    "@playwright/test": "1.49.1",
+    "esbuild": "^0.24.2",
+    "preact": "^10.29.8"
   }
 }

@@ -11,3 +11,5 @@ court-commander-backup-*.json
 roster-*.json
 court-commander-*-team-bank.json
 *.anon.json
+
+legacy/test-results/
