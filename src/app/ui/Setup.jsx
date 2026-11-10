@@ -11,7 +11,7 @@ import { Segmented, TeamBadge } from './primitives.jsx';
 import { IconCoin, IconTrash, IconSpark, IconChevron } from './icons.jsx';
 
 /** Rosters for lineup editing: the live match snapshot when one exists, otherwise the selected teams. */
-function lineupContext(doc, match) {
+export function lineupContext(doc, match) {
   if (match) return { us: match.teams.us, opp: match.teams.opp, generic: match.teams.opp.generic };
   const us = doc.teams.find((t) => t.id === doc.selection.usId) || { name: 'Our team', color: '#d6222c', players: [] };
   const opp = doc.teams.find((t) => t.id === doc.selection.oppId) || null;
@@ -19,6 +19,19 @@ function lineupContext(doc, match) {
 }
 
 const setLineup = (team, slots) => updateDoc((d) => ({ ...d, setup: { ...d.setup, lineup: { ...d.setup.lineup, [team]: slots } } }));
+/** Loads a saved lineup (starting six, libero, planned subs) into the staging area. */
+export function applyPreset(p, players) {
+  const known = (id) => players.some((x) => x.id === id);
+  updateDoc((d) => ({
+    ...d,
+    setup: {
+      ...d.setup,
+      lineup: { ...d.setup.lineup, us: p.slots.map((id) => (known(id) ? id : null)) },
+      libero: { ...d.setup.libero, us: p.libero && known(p.libero) ? p.libero : d.setup.libero.us },
+      plannedSubs: { ...d.setup.plannedSubs, us: (p.plannedSubs || []).filter((x) => known(x.in)) },
+    },
+  }));
+}
 const setLibero = (team, id) => updateDoc((d) => ({ ...d, setup: { ...d.setup, libero: { ...d.setup.libero, [team]: id } } }));
 
 /** First six non-liberos by jersey: a sensible default the coach then adjusts. */
@@ -56,7 +69,7 @@ export function LineupEditor({ match = null, title = 'Starting lineups' }) {
           {presets.length > 0 && (
             <select class="select" aria-label="Load saved lineup" onChange={(e) => {
               const p = presets.find((x) => x.id === e.currentTarget.value);
-              if (p) { setLineup('us', p.slots.map((id) => (ctx.us.players.some((x) => x.id === id) ? id : null))); if (p.libero) setLibero('us', p.libero); }
+              if (p) applyPreset(p, ctx.us.players);
               e.currentTarget.value = '';
             }}>
               <option value="">Saved lineups…</option>
@@ -194,7 +207,7 @@ export function MatchSetup() {
   const opps = doc.teams.filter((t) => t.side === 'opp' && t.name.toLowerCase().includes(query.trim().toLowerCase()));
   const opp = doc.teams.find((t) => t.id === doc.selection.oppId) || null;
   const theme = doc.settings.theme;
-  const select = (patch) => updateDoc((d) => ({ ...d, selection: { ...d.selection, ...patch }, setup: { ...d.setup, lineup: { ...d.setup.lineup, ...(patch.oppId !== undefined ? { opp: emptyLineup().opp } : {}), ...(patch.usId !== undefined ? { us: emptyLineup().us } : {}) }, libero: { us: patch.usId !== undefined ? null : d.setup.libero.us, opp: patch.oppId !== undefined ? null : d.setup.libero.opp } } }));
+  const select = (patch) => updateDoc((d) => ({ ...d, selection: { ...d.selection, ...patch }, setup: { ...d.setup, lineup: { ...d.setup.lineup, ...(patch.oppId !== undefined ? { opp: emptyLineup().opp } : {}), ...(patch.usId !== undefined ? { us: emptyLineup().us } : {}) }, libero: { us: patch.usId !== undefined ? null : d.setup.libero.us, opp: patch.oppId !== undefined ? null : d.setup.libero.opp }, plannedSubs: { us: patch.usId !== undefined ? [] : d.setup.plannedSubs.us, opp: patch.oppId !== undefined ? [] : d.setup.plannedSubs.opp } } }));
   const setSetup = (patch) => updateDoc((d) => ({ ...d, setup: { ...d.setup, ...patch } }));
   const begin = () => {
     if (!doc.setup.venue) { toast('Choose Home or Away first. It decides who calls the coin toss.', { tone: 'warn' }); return; }

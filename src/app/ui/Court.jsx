@@ -59,7 +59,7 @@ export function PlayerToken({ entry, zone, serving, onTap, color, compact, highl
   const role = entry.libero ? 'L' : (entry.roles && entry.roles[0]) || '';
   return (
     <button
-      class={`token ${entry.libero ? 'libero' : ''} ${serving ? 'serving' : ''} ${compact ? 'compact' : ''} ${highlight ? 'hl' : ''} ${dim ? 'dim' : ''}`}
+      class={`token ${entry.libero ? 'libero' : ''} ${entry.planned ? 'planned' : ''} ${serving ? 'serving' : ''} ${compact ? 'compact' : ''} ${highlight ? 'hl' : ''} ${dim ? 'dim' : ''}`}
       style={{ '--tc': color }}
       data-zone={zone}
       data-player={entry.id}
@@ -70,6 +70,7 @@ export function PlayerToken({ entry, zone, serving, onTap, color, compact, highl
       <span class="tok-name" ref={nameRef}>{name}</span>
       {role && !compact && <span class="tok-role" title={roleLabel(role)}>{role}</span>}
       {entry.sub && <span class="tok-sub" title="Substitute">SUB</span>}
+      {entry.planned && <span class="tok-sub tok-planned" title="Planned substitution">SUB IN</span>}
       {label && <span class="tok-label">{label}</span>}
       {serving && <span class="tok-ball"><Ball size={18} /></span>}
     </button>
@@ -110,10 +111,10 @@ export function Court({ entries, colors, serving, onTap, highlight, compact = fa
   return (
     <div class={`court ${compact ? 'court-compact' : ''}`}>
       {!hideOpp && (
-        <Half team="opp" entries={entries.opp} color={colors.opp} serveZone={serving === 'opp' ? 0 : -1} onTap={onTap} compact={compact} highlightZone={highlight && highlight.team === 'opp' ? highlight.zone : -1} labels={labels && labels.opp} dimZones={dimZones && dimZones.opp} />
+        <Half team="opp" entries={entries.opp} color={colors.opp} serveZone={serving === 'opp' || serving === 'both' ? 0 : -1} onTap={onTap} compact={compact} highlightZone={highlight && highlight.team === 'opp' ? highlight.zone : -1} labels={labels && labels.opp} dimZones={dimZones && dimZones.opp} />
       )}
       <div class="net" aria-hidden="true"><span /></div>
-      <Half team="us" entries={entries.us} color={colors.us} serveZone={serving === 'us' ? 0 : -1} onTap={onTap} compact={compact} highlightZone={highlight && highlight.team === 'us' ? highlight.zone : -1} labels={labels && labels.us} dimZones={dimZones && dimZones.us} />
+      <Half team="us" entries={entries.us} color={colors.us} serveZone={serving === 'us' || serving === 'both' ? 0 : -1} onTap={onTap} compact={compact} highlightZone={highlight && highlight.team === 'us' ? highlight.zone : -1} labels={labels && labels.us} dimZones={dimZones && dimZones.us} />
       {children}
     </div>
   );

@@ -29,7 +29,7 @@ export function defaultSettings() {
 export const emptyLineup = () => ({ us: [null, null, null, null, null, null], opp: [null, null, null, null, null, null] });
 
 export function defaultSetup() {
-  return { format: 3, venue: null, lineup: emptyLineup(), libero: { us: null, opp: null } };
+  return { format: 3, venue: null, lineup: emptyLineup(), libero: { us: null, opp: null }, plannedSubs: { us: [], opp: [] } };
 }
 
 export function emptyDoc() {
@@ -70,6 +70,10 @@ export function normalizeDoc(raw) {
       opp: fixSix(setup.lineup && setup.lineup.opp),
     },
     libero: { us: null, opp: null, ...(setup.libero || {}) },
+    plannedSubs: {
+      us: validSubs(setup.plannedSubs && setup.plannedSubs.us),
+      opp: validSubs(setup.plannedSubs && setup.plannedSubs.opp),
+    },
   };
   out.match = validMatch(doc.match) ? doc.match : null;
   out.archive = Array.isArray(doc.archive) ? doc.archive.filter((a) => a && a.id) : [];
@@ -79,6 +83,7 @@ export function normalizeDoc(raw) {
   return out;
 }
 
+const validSubs = (arr) => (Array.isArray(arr) ? arr.filter((x) => x && Number.isInteger(x.rotation) && Number.isInteger(x.slot) && typeof x.in === 'string') : []);
 const fixSix = (arr) => Array.from({ length: 6 }, (_, i) => (Array.isArray(arr) && arr[i]) || null);
 
 function validMatch(m) {

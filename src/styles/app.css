@@ -546,6 +546,12 @@ p { margin: 0; }
 .rot-card .card-head { margin-bottom: 0; }
 .rot-tags { display: flex; gap: 6px; flex-wrap: wrap; }
 .note-input { min-height: 54px; font-size: 13.5px; }
+.token.planned { border: 2px solid var(--good); box-shadow: 0 0 0 2px color-mix(in srgb, var(--good) 30%, transparent), 0 8px 20px rgba(0, 0, 0, .25); }
+.tok-planned { background: color-mix(in srgb, var(--good) 22%, transparent); color: var(--good); }
+.sub-notes { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
+.sub-notes li { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 6px 6px 6px 10px; border-radius: 10px; font-size: 13px; background: color-mix(in srgb, var(--good) 10%, var(--surface)); border: 1px solid color-mix(in srgb, var(--good) 35%, transparent); border-left: 4px solid var(--tc); }
+.sub-notes .icon-btn { width: 32px; height: 32px; }
+.plan-summary { display: flex; flex-direction: column; gap: 8px; margin: 0 0 14px; }
 .preset-chips { margin-bottom: 12px; }
 
 /* ---------- whiteboard ---------- */

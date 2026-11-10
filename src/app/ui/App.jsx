@@ -8,7 +8,7 @@ import { PickPlayer, TossSheet } from './Setup.jsx';
 import { StatsScreen } from './Stats.jsx';
 import { TeamsScreen, ImportSheet } from './Teams.jsx';
 import { HistoryScreen, ArchiveStatsSheet } from './History.jsx';
-import { PlannerScreen } from './Planner.jsx';
+import { PlannerScreen, PlanSubSheet } from './Planner.jsx';
 import { Whiteboard } from './Whiteboard.jsx';
 import { SettingsSheet } from './Settings.jsx';
 import { Sheet, DialogHost, Toasts } from './primitives.jsx';
@@ -42,6 +42,7 @@ function SheetHost() {
     case 'match-menu': return <Sheet title="Match" onClose={closeSheet}><MatchMenu onClose={closeSheet} /></Sheet>;
     case 'settings': return <SettingsSheet onClose={closeSheet} />;
     case 'import': return <ImportSheet onClose={closeSheet} />;
+    case 'plan-sub': return <PlanSubSheet team={sheet.team} rotation={sheet.rotation} zone={sheet.zone} onClose={closeSheet} />;
     case 'archive-stats': return <ArchiveStatsSheet id={sheet.id} onClose={closeSheet} />;
     default: return null;
   }

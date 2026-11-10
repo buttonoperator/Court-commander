@@ -8,8 +8,8 @@ Live volleyball match control for Tampa Prep: scoring, rotations, substitutions,
 | --- | --- |
 | `npm install` | Installs build and test tooling (esbuild, Preact, Playwright). Runtime has no dependencies. |
 | `npm run build` | Bundles `src/` into `./index.html`. Optional: `node scripts/build.mjs --version 2026-11-10-1`. |
-| `npm run test:unit` | Engine, rules, stats, import, seeding and v1 migration tests (Node test runner, 42 checks). |
-| `npm run test:e2e` | Playwright suite against the built `index.html` (30 checks, phone and iPad viewports). |
+| `npm run test:unit` | Engine, rules, stats, import, seeding and v1 migration tests (Node test runner, 48 checks). |
+| `npm run test:e2e` | Playwright suite against the built `index.html` (34 checks, phone and iPad viewports). |
 | `npm test` | Unit tests, build, end-to-end tests. |
 | `npm run test:legacy` | Characterization suite of the frozen v1 build in `legacy/` (reference only). |
 
@@ -22,6 +22,7 @@ Deploy: run `npm test`, bump the version (`--version`), commit `index.html`. Cli
 ```
 src/
   core/            pure logic, no DOM; runs in Node and the browser
+    plan.js        rotation planner: both lineups over six rotations with planned subs
     rules.js       NFHS rules profile, zone/slot geometry, set and toss rules
     engine.js      event-sourced match engine: commands, replay, undo
     stats.js       box score, side-out / point-score %, rotation +/-, CSV

@@ -42,13 +42,17 @@ Replay cost: a full five-set match replays in well under 5 ms (unit-tested), so 
 
 Rules values are copied into each match at creation, so changing settings never alters a match in progress.
 
-## 4. Statistics (src/core/stats.js)
+## 4. Rotation planner (src/core/plan.js)
+
+The Lineups tab projects both teams' staged lineups through all six rotations. A planned substitution is `{ rotation, slot, in }`: before that rotation the player in that lineup position is replaced. Planned subs are keyed by lineup slot, so they carry forward through later rotations as they do in a live set. The same rules as the live match apply: designated libero excluded, one lineup position per player (NFHS 10-3-3), no player twice on court, the per-set substitution limit. Rotation 1 edits the starting lineup. Saved lineups store the starting six, the libero and our planned subs. Planned subs live in `setup.plannedSubs` and are cleared when that team's selection changes.
+
+## 5. Statistics (src/core/stats.js)
 
 Rally codes: credited to the winner `K`, `ACE`, `BLK`; charged to the loser `SE`, `E`, `RE`, `BHE`, `NET`; `PT` when unattributed. Serve attempts come from the server recorded on every rally. Plus/minus counts every rally a player was on court. Rotation +/- groups rallies by our serving slot.
 
 Hitting percentage at player level counts recorded attempts only (kills and errors). Zero-result attacks are not captured live, so team-level hitting percentage is not presented.
 
-## 5. Persistence (src/app/store.js, src/core/model.js)
+## 6. Persistence (src/app/store.js, src/core/model.js)
 
 - Key `courtCommander.v2`: the whole document (teams, selection, setup, live match, archive, saved lineups, planner notes, whiteboard, settings).
 - First launch with no v2 document migrates `courtCommanderState_v1`. The v1 key is never modified or deleted, so the v1 build can still be restored.
@@ -58,11 +62,11 @@ Hitting percentage at player level counts recorded attempts only (kills and erro
 - Backup files: `{ type: 'court-commander-backup', version: 2, doc }`. Restore also accepts v1 backups.
 - All loaded and restored text is stripped of `<`, `>` and `"`; the UI renders text nodes only.
 
-## 6. Build
+## 7. Build
 
 `scripts/build.mjs` bundles with esbuild (Preact with JSX, IIFE, Safari 15+), inlines CSS, fonts and images as data URLs, and writes `index.html` (339 KB versus 743 KB for v1). The inline script is escaped against `</script` sequences.
 
-## 7. Open items
+## 8. Open items
 
 - Native iPad (SwiftUI) track: the engine's event model maps directly onto the Command pattern in the iOS plan; `src/core` is the reference implementation to port.
 - Apple Pencil is supported on the whiteboard through Pointer Events pressure; a PencilKit version belongs to the native track.
