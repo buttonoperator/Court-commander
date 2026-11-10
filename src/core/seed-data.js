@@ -1,11 +1,12 @@
 // Seed teams, extracted from the v1 build (Tampa Prep roster and researched opponent rosters/colors).
-// Bump SEED_VERSION after editing the Tampa Prep varsity roster; the app re-syncs that team by name on load.
+// maxprepsUrl is set only for pages confirmed to exist. Bump SEED_VERSION after editing the Tampa Prep varsity roster; the app re-syncs that team by name on load.
 export const SEED_VERSION = "2026-official-v2";
 export const OUR_COLOR = '#d6222c';
 
 export const SEED_US = [
   {
     name: "Tampa Prep Varsity 2026",
+    maxprepsUrl: "https://www.maxpreps.com/fl/tampa/tampa-prep-terrapins/volleyball/",
     color: "#d6222c",
     players: [
       {"name":"Evelina Styles","jersey":"1","grade":"Sr."},
@@ -136,6 +137,7 @@ export const SEED_OPP = [
   },
   {
     name: "Clearwater Central Catholic Marauders",
+    maxprepsUrl: "https://www.maxpreps.com/fl/clearwater/clearwater-central-catholic-marauders/volleyball/",
     color: "#d4a017",
     players: [
       {"name":"Mary Knowles Neel","jersey":"1","position":"OPP","grade":"Sr."},
@@ -159,6 +161,7 @@ export const SEED_OPP = [
   },
   {
     name: "Tampa Catholic Crusaders",
+    maxprepsUrl: "https://www.maxpreps.com/fl/tampa/tampa-catholic-crusaders/volleyball/",
     color: "#0b6623",
     players: [
       {"name":"Tierney Moulin","jersey":"1","position":"DS, OH","grade":"Sr."},
@@ -201,6 +204,7 @@ export const SEED_OPP = [
   },
   {
     name: "Bishop McLaughlin Catholic Hurricanes",
+    maxprepsUrl: "https://www.maxpreps.com/fl/spring-hill/bishop-mclaughlin-catholic-hurricanes/volleyball/",
     color: "#1e3a5f",
     players: [
       {"name":"MacKenziee Graf","jersey":"1","position":"S","grade":"Sr."},

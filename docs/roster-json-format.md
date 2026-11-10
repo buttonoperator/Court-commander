@@ -1,3 +1,18 @@
+# Getting rosters into Court Commander
+
+## From MaxPreps (recommended)
+
+MaxPreps publishes no API and its terms prohibit automated collection, so Court Commander never fetches MaxPreps itself. A person opens the page and copies the roster; the app reads the pasted text.
+
+1. **Teams** > the team > **MaxPreps** card. If the team is linked, tap **Open roster on MaxPreps**. If not, tap **Find on MaxPreps**, open the team's MaxPreps page, copy its address from the browser, and paste it into **MaxPreps team link** (any page of that school works; the app stores the volleyball home link).
+2. On MaxPreps, select the roster rows (numbers and names) and copy.
+3. Back in the app, tap **Paste roster**, paste, **Preview**.
+4. Check the preview against the page. **Replace roster** replaces the team's players. Players matched by name keep their ids, so saved lineups and planned subs still point at them, and roles set in the app are kept when the paste has none. Coach and staff rows are skipped.
+
+The parser accepts three shapes: a copied table (tab-separated, header row optional), one field per line (card layouts: number, name, grade, position), and one player per line ("12 Jane Doe Jr. OH"). The general **Teams** > **Import** sheet accepts the same text and creates a new team.
+
+## From a screenshot (JSON)
+
 # Roster JSON format
 
 How to turn a roster screenshot into a file or pasted text that Court Commander imports.

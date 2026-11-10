@@ -14,7 +14,10 @@ export function ensureSeedTeams(doc) {
   const has = (name, side) => teams.find((t) => t.name === name && t.side === side);
   for (const [list, side] of [[SEED_US, 'us'], [SEED_OPP, 'opp']]) {
     for (const s of list) {
-      if (!has(s.name, side)) teams.push(createTeam({ name: s.name, color: s.color, side, players: s.players, meta: s.name === VARSITY_NAME ? { sourceVersion: SEED_VERSION, isDefault: true } : {} }));
+      const meta = { ...(s.maxprepsUrl ? { maxprepsUrl: s.maxprepsUrl } : {}), ...(s.name === VARSITY_NAME ? { sourceVersion: SEED_VERSION, isDefault: true } : {}) };
+      const existing = has(s.name, side);
+      if (!existing) teams.push(createTeam({ name: s.name, color: s.color, side, players: s.players, meta }));
+      else if (s.maxprepsUrl && !existing.maxprepsUrl) existing.maxprepsUrl = s.maxprepsUrl; // backfill links for saved teams
     }
   }
   const varsity = teams.find((t) => t.name === VARSITY_NAME && t.side === 'us');

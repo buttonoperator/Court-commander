@@ -505,6 +505,12 @@ p { margin: 0; }
 #import-sheet .segmented { margin-bottom: 10px; }
 #import-sheet .textarea { margin-bottom: 10px; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 12.5px; }
 
+a.btn { text-decoration: none; color: inherit; }
+a.btn.primary { color: #fff; }
+.mp-steps { margin: 0 0 12px; padding-left: 20px; color: var(--muted); font-size: 13.5px; line-height: 1.55; }
+.mp-steps b { color: var(--text); }
+.mp-url { display: flex; flex-direction: column; gap: 6px; margin-top: 12px; }
+
 /* ---------- history ---------- */
 .record-pill { font-family: var(--font-display); font-weight: 800; font-size: 22px; padding: 6px 14px; border-radius: 14px; background: var(--surface); border: 1px solid var(--line); }
 .record-pill small { font-family: var(--font-ui); font-size: 11px; color: var(--muted); font-weight: 600; margin-left: 4px; }

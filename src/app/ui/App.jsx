@@ -41,7 +41,7 @@ function SheetHost() {
     case 'toss': return <Sheet title={sheet.mode === 'toss' ? 'Coin toss' : `Set ${sheet.set}`} onClose={closeSheet} id="toss-sheet"><TossSheet set={sheet.set} mode={sheet.mode} onClose={closeSheet} /></Sheet>;
     case 'match-menu': return <Sheet title="Match" onClose={closeSheet}><MatchMenu onClose={closeSheet} /></Sheet>;
     case 'settings': return <SettingsSheet onClose={closeSheet} />;
-    case 'import': return <ImportSheet onClose={closeSheet} />;
+    case 'import': return <ImportSheet onClose={closeSheet} targetTeamId={sheet.targetTeamId} />;
     case 'plan-sub': return <PlanSubSheet team={sheet.team} rotation={sheet.rotation} zone={sheet.zone} onClose={closeSheet} />;
     case 'archive-stats': return <ArchiveStatsSheet id={sheet.id} onClose={closeSheet} />;
     default: return null;
