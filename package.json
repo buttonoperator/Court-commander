@@ -7,7 +7,7 @@
     "test:unit": "node --test tests/unit/*.test.mjs",
     "test:e2e": "playwright test",
     "test": "npm run test:unit && npm run build && playwright test",
-    "test:legacy": "CC_ENTRY=legacy/index.v1.html playwright test --config legacy/playwright.legacy.config.js"
+    "test:archive": "CC_ENTRY=archive/index.v1.html playwright test --config archive/playwright.archive.config.js"
   },
   "devDependencies": {
     "@fontsource/barlow-condensed": "^5.3.0",

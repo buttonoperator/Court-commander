@@ -12,4 +12,4 @@ roster-*.json
 court-commander-*-team-bank.json
 *.anon.json
 
-legacy/test-results/
+archive/test-results/

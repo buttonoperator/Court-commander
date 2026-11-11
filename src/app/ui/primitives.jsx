@@ -36,7 +36,8 @@ export function DialogHost() {
   const dialog = useObservable(ui, (s) => s.dialog);
   const [text, setText] = useState('');
   const inputRef = useRef(null);
-  useEffect(() => {
+  // Layout effect: seed the prompt's text before it is shown, so early typing is never overwritten.
+  useLayoutEffect(() => {
     if (dialog && dialog.kind === 'prompt') {
       setText(dialog.value || '');
       setTimeout(() => inputRef.current && inputRef.current.select(), 30);

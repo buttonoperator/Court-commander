@@ -11,7 +11,7 @@ Live volleyball match control for Tampa Prep: scoring, rotations, substitutions,
 | `npm run test:unit` | Engine, rules, stats, import, seeding and v1 migration tests (Node test runner, 56 checks). |
 | `npm run test:e2e` | Playwright suite against the built `index.html` (39 checks, phone and iPad viewports). |
 | `npm test` | Unit tests, build, end-to-end tests. |
-| `npm run test:legacy` | Characterization suite of the frozen v1 build in `legacy/` (reference only). |
+| `npm run test:archive` | Characterization suite of the frozen v1 build in `archive/` (reference only). |
 
 Set `CHROME_PATH` to a local Chrome binary if Playwright's bundled browser is not installed.
 
@@ -42,7 +42,7 @@ scripts/build.mjs  single-file build
 tests/unit         Node tests
 tests/e2e          Playwright tests
 tests/fixtures     v1 saves produced by the v1 build, anonymised
-legacy/            frozen v1 build and its characterization suite
+archive/            frozen v1 build and its characterization suite
 docs/              architecture notes, roster JSON format
 ```
 
