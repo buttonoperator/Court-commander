@@ -182,3 +182,33 @@ test.describe('match flow through the UI', () => {
     expect(dl.suggestedFilename()).toMatch(/^tampa-prep-varsity-2026-vs-tampa-catholic-crusaders-.*\.csv$/);
   });
 });
+
+test.describe('setup lineup feedback', () => {
+  test('tapping the opponent side with no opponent chosen explains why', async ({ app }) => {
+    await app.open();
+    await app.page.click('.lineup-editor .half-opp .token[data-zone="0"]');
+    await expect(app.page.locator('.toast')).toContainText('Pick the opponent above');
+    await expect(app.page.locator('#pick-sheet')).toHaveCount(0);
+  });
+
+  test('a team with no players says so and links to Teams', async ({ app }) => {
+    await app.open();
+    await app.ev(() => cc.updateDoc((d) => ({ ...d, teams: d.teams.map((t) => (t.id === d.selection.usId ? { ...t, players: [] } : t)) })));
+    await app.page.click('.lineup-editor .half-us .token[data-zone="0"]');
+    await expect(app.page.locator('#pick-sheet')).toContainText('has no players yet');
+    await app.page.click('[data-testid="go-teams"]');
+    await expect(app.page.locator('.teams')).toBeVisible();
+  });
+
+  test('every court spot on the setup screen can be filled by tapping', async ({ app }) => {
+    await app.open();
+    await app.page.click('.team-card[data-team="Tampa Catholic Crusaders"]');
+    for (const team of ['us', 'opp']) {
+      for (let z = 0; z < 6; z++) {
+        await app.page.click(`.lineup-editor .half-${team} .token[data-zone="${z}"]`);
+        await app.page.locator('#pick-sheet .pick:not(:has-text("in Z"))').first().click();
+      }
+    }
+    expect(await app.ev(() => [cc.doc.setup.lineup.us.filter(Boolean).length, cc.doc.setup.lineup.opp.filter(Boolean).length])).toEqual([6, 6]);
+  });
+});

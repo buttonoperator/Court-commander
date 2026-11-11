@@ -57,7 +57,14 @@ export function LineupEditor({ match = null, title = 'Starting lineups' }) {
   const presets = doc.presets.filter((p) => ctx.us.id && p.teamId === (match ? match.teams.us.teamId : ctx.us.id));
   const liberos = (team) => ctx[team].players.filter((p) => p.libero && !lineup[team].includes(p.id));
   const onTap = (team, zone) => {
-    if (team === 'opp' && ctx.generic) return;
+    if (team === 'opp' && ctx.generic) {
+      // Placeholder spots: there is no opponent roster to pick from. Say so instead of doing nothing.
+      toast(match
+        ? 'This opponent has no roster, so only their serve order is tracked.'
+        : 'Pick the opponent above to place their players. With "Unlisted opponent", only their serve order is tracked.', { tone: 'warn', ms: 4500 });
+      if (!match) document.querySelector('.team-grid')?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      return;
+    }
     setUi({ sheet: { kind: 'pick-player', team, zone, matchMode: Boolean(match) } });
   };
   const complete = (team) => lineup[team].every(Boolean);
@@ -116,6 +123,15 @@ export function PickPlayer({ team, zone, matchMode, onClose }) {
     if (doc.setup.libero[team] === id) setLibero(team, null);
     onClose();
   };
+  if (!players.length) {
+    return (
+      <div class="pick-empty">
+        <p><b>{ctx[team].name}</b> has no players yet.</p>
+        <p class="muted small">Add players in Teams (type them in, paste from MaxPreps, or import a roster), then come back.</p>
+        <button class="btn primary" data-testid="go-teams" onClick={() => { onClose(); setUi({ tab: 'teams' }); }}>Go to Teams</button>
+      </div>
+    );
+  }
   return (
     <div class="pick-grid">
       {players.map((p) => {
