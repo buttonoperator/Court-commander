@@ -1,3 +1,18 @@
+# Getting rosters into Court Commander
+
+## From MaxPreps (recommended)
+
+MaxPreps publishes no API and its terms prohibit automated collection, so Court Commander never fetches MaxPreps itself. A person opens the page and copies the roster; the app reads the pasted text.
+
+1. **Teams** > the team > **MaxPreps** card. If the team is linked, tap **Open roster on MaxPreps**. If not, tap **Find on MaxPreps**, open the team's MaxPreps page, copy its address from the browser, and paste it into **MaxPreps team link** (any page of that school works; the app stores the volleyball home link).
+2. On MaxPreps, select the roster rows (numbers and names) and copy.
+3. Back in the app, tap **Paste roster**, paste, **Preview**.
+4. Check the preview against the page. **Replace roster** replaces the team's players. Players matched by name keep their ids, so saved lineups and planned subs still point at them, and roles set in the app are kept when the paste has none. Coach and staff rows are skipped.
+
+The parser accepts three shapes: a copied table (tab-separated, header row optional), one field per line (card layouts: number, name, grade, position), and one player per line ("12 Jane Doe Jr. OH"). The general **Teams** > **Import** sheet accepts the same text and creates a new team.
+
+## From a screenshot (JSON)
+
 # Roster JSON format
 
 How to turn a roster screenshot into a file or pasted text that Court Commander imports.
@@ -7,9 +22,9 @@ How to turn a roster screenshot into a file or pasted text that Court Commander 
 1. Screenshot the opponent's roster (the roster page, the program, a MaxPreps or school-site table).
 2. Give Claude the screenshot and the prompt below.
 3. Copy Claude's JSON reply.
-4. In Court Commander: **Manage Roster** (open the Home or Visitor roster, depending on where the team should be saved) > **Backup & Sharing** > **Paste JSON** > paste > **Import Pasted JSON**. Or save the reply as a `.json` file and use **Import**.
+4. In Court Commander: **Teams** > **Import** > choose **Opponent** or **Our team** > paste the reply > **Preview**. Or use **File** to pick a saved `.json`.
 5. Read the preview. It lists every player the app understood, plus warnings (skipped rows, duplicate jerseys). Confirm only if it matches the screenshot.
-6. The team is saved to that side's Saved Teams / Saved Opponents list. Import never changes what is on court, and it is disabled while a match is in progress (End Match first).
+6. Confirm with **Import**. The team appears under Teams. Import never changes a match in progress: a live match uses its own copy of both rosters.
 
 Names, jersey numbers and grades from a screenshot can be misread. Compare the preview with the screenshot before confirming. A wrong entry can be fixed afterward in Manage Roster.
 

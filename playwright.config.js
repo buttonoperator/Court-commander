@@ -1,10 +1,10 @@
-// Characterization suite for the frozen index.html. Serves the repo root over
-// http://127.0.0.1:4173 so localStorage has a stable origin and the in-page
-// update check (fetch of its own URL) behaves as on GitHub Pages.
+// End-to-end suite for the built single-file app (./index.html).
+// Run `npm run build` first (npm test does both). CHROME_PATH points at a local Chrome if Playwright's
+// bundled browser is not installed.
 const { defineConfig } = require('@playwright/test');
 
 module.exports = defineConfig({
-  testDir: './tests',
+  testDir: './tests/e2e',
   testMatch: '**/*.spec.js',
   timeout: 30000,
   fullyParallel: true,
@@ -14,6 +14,7 @@ module.exports = defineConfig({
     baseURL: 'http://127.0.0.1:4173',
     viewport: { width: 390, height: 844 },
     browserName: 'chromium',
+    launchOptions: { executablePath: process.env.CHROME_PATH || undefined },
   },
   webServer: {
     command: 'node tests/support/server.js',
