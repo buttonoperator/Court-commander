@@ -1,6 +1,6 @@
 // Pre-match setup, the shared lineup editor and the coin toss / first-serve sheet.
 import { useState } from 'preact/hooks';
-import { docStore, useObservable, updateDoc, setUi, startMatch, startNextSet, matchView, toast } from '../store.js';
+import { docStore, ui, useObservable, updateDoc, setUi, startMatch, startNextSet, matchView, toast } from '../store.js';
 import { emptyLineup } from '../../core/model.js';
 import { byJersey, shortName } from '../../core/roster.js';
 import { decidingSetNumber, other } from '../../core/rules.js';
@@ -62,7 +62,7 @@ export function LineupEditor({ match = null, title = 'Starting lineups' }) {
       toast(match
         ? 'This opponent has no roster, so only their serve order is tracked.'
         : 'Pick the opponent above to place their players. With "Unlisted opponent", only their serve order is tracked.', { tone: 'warn', ms: 4500 });
-      if (!match) document.querySelector('.team-grid')?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      if (!match) { setUi({ oppPicker: true }); setTimeout(() => document.querySelector('.opp-card')?.scrollIntoView({ behavior: 'smooth', block: 'center' }), 50); }
       return;
     }
     setUi({ sheet: { kind: 'pick-player', team, zone, matchMode: Boolean(match) } });
@@ -218,6 +218,8 @@ export function TossSheet({ set, mode, onClose }) {
 export function MatchSetup() {
   const doc = useObservable(docStore);
   const [query, setQuery] = useState('');
+  // The opponent list collapses to one row once a choice is made; "Change" reopens it.
+  const pickerFlag = useObservable(ui, (st) => st.oppPicker);
   const us = doc.teams.find((t) => t.id === doc.selection.usId);
   const ourTeams = doc.teams.filter((t) => t.side === 'us');
   const opps = doc.teams.filter((t) => t.side === 'opp' && t.name.toLowerCase().includes(query.trim().toLowerCase()));
@@ -252,26 +254,48 @@ export function MatchSetup() {
         </section>
       )}
 
-      <section class="card">
-        <header class="card-head">
-          <h3>Opponent</h3>
-          <input class="input search" type="search" placeholder="Search teams" value={query} onInput={(e) => setQuery(e.currentTarget.value)} aria-label="Search opponents" />
-        </header>
-        <div class="team-grid" role="listbox" aria-label="Opponents">
-          {opps.map((t) => (
-            <button key={t.id} role="option" aria-selected={t.id === doc.selection.oppId} class={`team-card ${t.id === doc.selection.oppId ? 'on' : ''}`} style={{ '--tc': displayColor(t.color, theme) }} onClick={() => select({ oppId: t.id })} data-team={t.name}>
-              <TeamBadge name={t.name} color={displayColor(t.color, theme)} />
-              <span class="tc-name">{t.name}</span>
-              <span class="tc-meta">{t.players.length} players</span>
-            </button>
-          ))}
-          <button class={`team-card ghost ${!doc.selection.oppId ? 'on' : ''}`} onClick={() => select({ oppId: null })} data-team="unlisted">
-            <TeamBadge name="? ?" color="#64748b" />
-            <span class="tc-name">Unlisted opponent</span>
-            <span class="tc-meta">No roster · serve order only</span>
-          </button>
-        </div>
-      </section>
+      {(() => {
+        const open = pickerFlag ?? !doc.selection.oppId;
+        const choose = (oppId) => { select({ oppId }); setQuery(''); setUi({ oppPicker: false }); };
+        if (!open) {
+          return (
+            <section class="card opp-card opp-collapsed" style={{ '--tc': displayColor(opp ? opp.color : '#64748b', theme) }} data-testid="opponent-summary">
+              <TeamBadge name={opp ? opp.name : '? ?'} color={displayColor(opp ? opp.color : '#64748b', theme)} />
+              <div class="opp-summary-text">
+                <span class="eyebrow">Opponent</span>
+                <b>{opp ? opp.name : 'Unlisted opponent'}</b>
+                <small class="muted">{opp ? `${opp.players.length} players` : 'No roster · serve order only'}</small>
+              </div>
+              <button class="btn ghost sm" data-testid="change-opponent" onClick={() => setUi({ oppPicker: true })}>Change</button>
+            </section>
+          );
+        }
+        return (
+          <section class="card opp-card">
+            <header class="card-head">
+              <h3>Opponent</h3>
+              <div class="row gap-s">
+                <input class="input search" type="search" placeholder="Search teams" value={query} onInput={(e) => setQuery(e.currentTarget.value)} aria-label="Search opponents" />
+                {doc.selection.oppId && <button class="btn ghost sm" data-testid="close-opponents" onClick={() => setUi({ oppPicker: false })}>Done</button>}
+              </div>
+            </header>
+            <div class="team-grid" role="listbox" aria-label="Opponents">
+              {opps.map((t) => (
+                <button key={t.id} role="option" aria-selected={t.id === doc.selection.oppId} class={`team-card ${t.id === doc.selection.oppId ? 'on' : ''}`} style={{ '--tc': displayColor(t.color, theme) }} onClick={() => choose(t.id)} data-team={t.name}>
+                  <TeamBadge name={t.name} color={displayColor(t.color, theme)} />
+                  <span class="tc-name">{t.name}</span>
+                  <span class="tc-meta">{t.players.length} players</span>
+                </button>
+              ))}
+              <button class={`team-card ghost ${!doc.selection.oppId ? 'on' : ''}`} onClick={() => choose(null)} data-team="unlisted">
+                <TeamBadge name="? ?" color="#64748b" />
+                <span class="tc-name">Unlisted opponent</span>
+                <span class="tc-meta">No roster · serve order only</span>
+              </button>
+            </div>
+          </section>
+        );
+      })()}
 
       <section class="card grid-2">
         <div>

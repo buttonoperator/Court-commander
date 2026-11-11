@@ -343,6 +343,10 @@ p { margin: 0; }
 .team-card.ghost { border-style: dashed; }
 .tc-name { font-weight: 700; font-size: 14px; line-height: 1.2; }
 .tc-meta { font-size: 12px; color: var(--muted); }
+.opp-collapsed { display: flex; align-items: center; gap: 12px; padding: 12px 14px; background: linear-gradient(100deg, color-mix(in srgb, var(--tc) 16%, transparent), transparent 60%), var(--surface); border-color: color-mix(in srgb, var(--tc) 35%, var(--line)); animation: pop .25s var(--spring); }
+.opp-summary-text { flex: 1; min-width: 0; display: flex; flex-direction: column; line-height: 1.2; }
+.opp-summary-text .eyebrow { font-size: 11px; }
+.opp-summary-text b { font-size: 16px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .setup-cta { display: flex; justify-content: center; padding: 6px 0 20px; }
 .lineup-editor .court { margin: 10px 0; }
 .lineup-status { display: flex; gap: 14px; flex-wrap: wrap; font-size: 13px; font-weight: 600; color: var(--muted); }

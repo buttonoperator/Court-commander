@@ -72,6 +72,7 @@ export const ui = observable({
   ownerLost: false,
   updating: false,
   saveState: 'saved',   // saved | pending | error | suspended
+  oppPicker: null,      // setup screen: opponent list open (null = open only until an opponent is chosen)
 });
 export const setUi = (patch) => ui.set({ ...ui.get(), ...(typeof patch === 'function' ? patch(ui.get()) : patch) });
 

@@ -212,3 +212,20 @@ test.describe('setup lineup feedback', () => {
     expect(await app.ev(() => [cc.doc.setup.lineup.us.filter(Boolean).length, cc.doc.setup.lineup.opp.filter(Boolean).length])).toEqual([6, 6]);
   });
 });
+
+test('opponent picker collapses to one row after choosing, and Change reopens it', async ({ app }) => {
+  await app.open();
+  await expect(app.page.locator('.team-grid')).toBeVisible();
+  await app.page.click('.team-card[data-team="Tampa Catholic Crusaders"]');
+  await expect(app.page.locator('.team-grid')).toHaveCount(0);
+  await expect(app.page.locator('[data-testid="opponent-summary"]')).toContainText('Tampa Catholic Crusaders');
+  await app.page.click('[data-testid="change-opponent"]');
+  await app.page.click('.team-card[data-team="Plant Panthers"]');
+  await expect(app.page.locator('[data-testid="opponent-summary"]')).toContainText('Plant Panthers');
+  // Choosing "Unlisted" also collapses; tapping a placeholder spot reopens the list.
+  await app.page.click('[data-testid="change-opponent"]');
+  await app.page.click('.team-card[data-team="unlisted"]');
+  await expect(app.page.locator('[data-testid="opponent-summary"]')).toContainText('Unlisted opponent');
+  await app.page.click('.lineup-editor .half-opp .token[data-zone="0"]');
+  await expect(app.page.locator('.team-grid')).toBeVisible();
+});
